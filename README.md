@@ -5,7 +5,7 @@ Probabilistic Gradient Boosting Machines (PGBM) is a gradient boosting framework
 * GPU-acceleration.
 * Auto-differentiation of custom loss functions.
 
-It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link)
+It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [the paper](arxiv-link).
 
 ### Dependencies ###
 
@@ -29,29 +29,17 @@ To run the experiments comparing against baseline models install the following p
 * The first time it may take a bit longer to import pgbm as it relies on JIT compilation for the custom CUDA kernel. 
 
 ### Examples ###
-See the folder pgbm/demos. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost, except that it is required to explicitly define a loss function and loss metric (see the demo folder for an example).
+See the folder pgbm/demos. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric (see the demo folder for an example).
 
-### Datasets ###
-Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the respective folders indicated below.
+### Experiments ###
 
-* [yacht](https://archive.ics.uci.edu/ml/datasets/yacht+hydrodynamics)
-* [boston](https://archive.ics.uci.edu/ml/machine-learning-databases/housing/)
-* [energy](https://archive.ics.uci.edu/ml/datasets/energy+efficiency)
-* [concrete](https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/)
-* [wine](https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/)
-* [kin8nm](https://www.openml.org/d/189)
-* [power](https://archive.ics.uci.edu/ml/datasets/combined+cycle+power+plant)
-* [naval](http://archive.ics.uci.edu/ml/datasets/condition+based+maintenance+of+naval+propulsion+plants)
-* [protein](https://archive.ics.uci.edu/ml/datasets/Physicochemical+Properties+of+Protein+Tertiary+Structure)
-* [msd](https://archive.ics.uci.edu/ml/datasets/YearPredictionMSD)
-* [higgs](https://archive.ics.uci.edu/ml/datasets/HIGGS) (pre-download and extract to pgbm/datasets)
-* [m5](https://www.kaggle.com/c/m5-forecasting-accuracy/data) (pre-download and extract to pgbm/datasets)
+The experiments from our paper can be replicated by running the scripts in the (experiments folder). Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to pgbm/datasets.
 
 ### Reference ###
 [Olivier Sprangers](mailto:o.r.sprangers@uva.nl), [Sebastian Schelter](mailto:s.schelter@uva.nl), [Maarten de Rijke](mailto:m.derijke@uva.nl). [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at SIGKDD '21.
 
 ### License ###
-This project is licensed under the terms of the [Apache 2.0 license](link to license)
+This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE)
 
 ### ToDo ###
 We intend to have the package as lightweight as possible.
