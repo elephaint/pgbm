@@ -127,3 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Specific directories & files
+**/_old
+/pgbm/datasets/m5
+/pgbm/datasets/*.csv
+/pgbm/datasets/*.xls
+/pgbm/datasets/*.txt
+/pgbm/datasets/*.xlsx
+notes/
+*.csv

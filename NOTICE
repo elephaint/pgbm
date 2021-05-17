@@ -1,0 +1,46 @@
+==============================================================
+ PGBM
+ Copyright 2021 Olivier Sprangers
+==============================================================
+
+The core package makes use of:
+	PyTorch: 
+		PyTorch (https://pytorch.org/)
+		Copyright (c) 2016-     Facebook, Inc            (Adam Paszke)
+		Copyright (c) 2014-     Facebook, Inc            (Soumith Chintala)
+		Copyright (c) 2011-2014 Idiap Research Institute (Ronan Collobert)
+		Copyright (c) 2012-2014 Deepmind Technologies    (Koray Kavukcuoglu)
+		Copyright (c) 2011-2012 NEC Laboratories America (Koray Kavukcuoglu)
+		Copyright (c) 2011-2013 NYU                      (Clement Farabet)
+		Copyright (c) 2006-2010 NEC Laboratories America (Ronan Collobert, Leon Bottou, Iain Melvin, Jason Weston)
+		Copyright (c) 2006      Idiap Research Institute (Samy Bengio)
+		Copyright (c) 2001-2004 Idiap Research Institute (Ronan Collobert, Samy Bengio, Johnny Mariethoz)
+	
+	Numpy:
+		Numpy(https://github.com/numpy/numpy)
+		Copyright (c) 2005-2021, NumPy Developers.
+
+In the experimental section the following additional packages are used:
+	LightGBM (https://github.com/microsoft/LightGBM)
+	Copyright (c) Microsoft Corporation
+
+	Scikit-learn (https://github.com/scikit-learn/scikit-learn)
+	Copyright (c) 2007-2020 The scikit-learn developers.
+
+	Properscoring (https://github.com/TheClimateCorporation/properscoring)
+	Copyright (c) 2015 The Climate Corporation
+		
+	Numpy (https://github.com/numpy/numpy)
+	Copyright (c) 2005-2021, NumPy Developers.
+
+	Pandas (https://github.com/pandas-dev/pandas)
+	Copyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team. All rights reserved.
+	Copyright (c) 2011-2021, Open source contributors.
+		
+	NGBoost (https://github.com/stanfordmlgroup/ngboost)
+	Copyright (c) 2019 Tony Duan, Anand Avati, Daisy Yi Ding, Khanh K. Thai, Sanjay Basu, Andrew Y. Ng, Alejandro Schuler
+
+	Matplotlib (https://matplotlib.org/)
+	Copyright (c) 2002 - 2012 John Hunter, Darren Dale, Eric Firing, Michael Droettboom and the Matplotlib development team.
+	Copyright (c) 2012 - 2021 The Matplotlib development team. 
+
