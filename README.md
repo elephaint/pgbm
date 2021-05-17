@@ -7,9 +7,15 @@ Probabilistic Gradient Boosting Machines (PGBM) is a gradient boosting framework
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [the paper](arxiv-link).
 
-### Dependencies ###
+### Installation ###
+* Clone the repository
+* Go to {your_installation_directory}/pgbm
+* Run the demo from the folder pgbm/demos/demo_pgbm.py to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
+* The first time it may take a bit longer to import pgbm as it relies on JIT compilation for the custom CUDA kernel. 
 
-* PyTorch >= 1.7.0 with CUDA 11.0 (download from: https://pytorch.org/get-started/locally/)
+#### Dependencies ####
+
+* PyTorch >= 1.7.0 with CUDA 11.0 for GPU acceleration (download from: https://pytorch.org/get-started/locally/)
 * PGBM uses a custom CUDA kernel which needs to be compiled; this may require installing a suitable compiler (e.g. gcc) although installing PyTorch according to the official docs should install all the required dependencies.
 
 To run the experiments comparing against baseline models install the following packages using `pip` or  `conda`:
@@ -22,14 +28,8 @@ To run the experiments comparing against baseline models install the following p
 * lightgbm
 * matplotlib
 
-### Installation ###
-* Clone the repository
-* Go to {your_installation_directory}/pgbm
-* Run the demo from the folder pgbm/demos/demo_pgbm.py to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
-* The first time it may take a bit longer to import pgbm as it relies on JIT compilation for the custom CUDA kernel. 
-
 ### Examples ###
-See the folder pgbm/demos. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric (see the demo folder for an example).
+See the folder pgbm/demos. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric (see the demo folder for an example).
 
 ### Experiments ###
 
@@ -39,7 +39,7 @@ The experiments from our paper can be replicated by running the scripts in the (
 [Olivier Sprangers](mailto:o.r.sprangers@uva.nl), [Sebastian Schelter](mailto:s.schelter@uva.nl), [Maarten de Rijke](mailto:m.derijke@uva.nl). [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at SIGKDD '21.
 
 ### License ###
-This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE)
+This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE).
 
 ### ToDo ###
 We intend to have the package as lightweight as possible.
@@ -48,4 +48,4 @@ We intend to have the package as lightweight as possible.
 - [ ] Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)
 - [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).
 - [ ] Set default values for learning parameters.
-- [ ] Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`
+- [ ] Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`.
