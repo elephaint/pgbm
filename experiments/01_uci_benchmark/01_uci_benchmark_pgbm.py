@@ -16,7 +16,7 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
-
+#%% Import packages
 import torch
 import time
 import pgbm
@@ -24,7 +24,7 @@ from sklearn.model_selection import train_test_split
 import properscoring as ps
 import pandas as pd
 import numpy as np
-from pgbm.datasets import get_dataset, get_fold
+from datasets import get_dataset, get_fold
 #%% Objective
 def objective(yhat, y):
     gradient = (yhat - y)
@@ -52,7 +52,7 @@ params = {'min_split_gain':0,
       'seed':1,
       'lambda':1,
       'tree_correlation':0.03,
-      'device':'cpu',
+      'device':'gpu',
       'output_device':'gpu',
       'gpu_device_ids':(0,),
       'derivatives':'exact',
@@ -109,4 +109,4 @@ for i, dataset in enumerate(datasets):
         df = df.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}, ignore_index=True)
 #%% Save
 filename = f"{method}_{params['device']}.csv"
-df.to_csv(f'pgbm/experiments/01_uci_benchmark/{filename}')
+df.to_csv(f'experiments/01_uci_benchmark/{filename}')

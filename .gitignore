@@ -130,10 +130,9 @@ dmypy.json
 
 # Specific directories & files
 **/_old
-/pgbm/datasets/m5
-/pgbm/datasets/*.csv
-/pgbm/datasets/*.xls
-/pgbm/datasets/*.txt
-/pgbm/datasets/*.xlsx
+datasets/m5
+*.xls
+*.txt
+*.xlsx
 notes/
 *.csv

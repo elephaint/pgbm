@@ -16,13 +16,13 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
-
+#%% Import packages
 import numpy as np
 import time
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 import pandas as pd
-from pgbm.datasets import get_dataset, get_fold
+from datasets import get_dataset, get_fold
 #%% Objective
 def rmseloss_metric(yhat, y):
     loss = np.sqrt(np.mean((yhat - y)**2))
@@ -48,7 +48,7 @@ params['num_leaves'] = 8
 params['bagging_freq'] = 1
 params['min_data_in_bin'] = 1
 #%% Loop
-datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
+datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht', 'higgs']
 base_estimators = 2000
 df = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rmse_test','crps_test','validation_time'])
 for i, dataset in enumerate(datasets):
@@ -92,4 +92,4 @@ for i, dataset in enumerate(datasets):
         df = df.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}, ignore_index=True)
 #%% Save
 filename = f"{method}_{params['device']}.csv"
-df.to_csv(f'pgbm/experiments/01_uci_benchmark/{filename}')
+df.to_csv(f'experiments/01_uci_benchmark/{filename}')

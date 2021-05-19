@@ -1,9 +1,9 @@
 # PGBM #
 
-Probabilistic Gradient Boosting Machines (PGBM) is a gradient boosting framework in Python based on PyTorch. It provides the following advantages over existing frameworks:
+Probabilistic Gradient Boosting Machines (PGBM) is a probabilistic gradient boosting framework in Python based on PyTorch. It provides the following advantages over existing frameworks:
 * Probabilistic regression estimates instead of only point estimates.
-* Native GPU-acceleration.
 * Auto-differentiation of custom loss functions.
+* Native GPU-acceleration.
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [the paper](arxiv-link).
 
@@ -27,7 +27,7 @@ See the [demos](https://github.com/elephaint/pgbm/tree/main/demos) folder. In ge
 The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder.
 
 ### Reference ###
-[Olivier Sprangers](mailto:o.r.sprangers@uva.nl), [Sebastian Schelter](mailto:s.schelter@uva.nl), [Maarten de Rijke](mailto:m.derijke@uva.nl). [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).
+[Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).
 
 ### License ###
 This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE).
@@ -35,7 +35,7 @@ This project is licensed under the terms of the [Apache 2.0 license](https://git
 ### ToDo ###
 We intend to have the package as lightweight as possible.
 
-- [x] Add extreme value distributions such as Gumbel and Weibull to distribution choices.
+- [x] ~~Add extreme value distributions such as Gumbel and Weibull to distribution choices.~~
 - [ ] Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)
 - [ ] Set default values for learning parameters.
 - [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).

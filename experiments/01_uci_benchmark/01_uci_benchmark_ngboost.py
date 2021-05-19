@@ -16,14 +16,14 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
-
+#%% Import packages
 import time
 from sklearn.model_selection import train_test_split
 from ngboost import NGBRegressor
 import properscoring as ps
 import pandas as pd
 import numpy as np
-from pgbm.datasets import get_dataset, get_fold
+from datasets import get_dataset, get_fold
 #%% specific
 def rmseloss_metric(yhat, y):
     loss = np.sqrt(np.mean((yhat - y)**2))
@@ -78,4 +78,4 @@ for i, dataset in enumerate(datasets):
         df = df.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':'cpu', 'validation_estimators': base_estimators, 'test_estimators':best_iter, 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}, ignore_index=True)
 #%% Save
 filename = f'{method}_cpu.csv'
-df.to_csv(f'pgbm/experiments/01_uci_benchmark/{filename}')
+df.to_csv(f'experiments/01_uci_benchmark/{filename}')

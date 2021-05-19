@@ -24,7 +24,7 @@ import requests, zipfile, io
 import numpy as np
 #%% Load data
 def get_dataset(dataset):
-    location = 'pgbm/datasets/'
+    location = 'datasets/'
     datasets = {'boston': lambda: load_boston(return_X_y=True),
                 'concrete': lambda: pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/Concrete_Data.xls'),
                 'energy': lambda: pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/00242/ENB2012_data.xlsx').iloc[:, :-2],

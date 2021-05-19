@@ -386,38 +386,41 @@ class PGBM(nn.Module):
         mu += yhat0
         if self.params['distribution'] == 'normal':
             loc = mu
-            scale = variance.sqrt()
+            scale = torch.nan_to_num(variance.sqrt(), 1e-9)
             yhat = Normal(loc, scale).rsample([n_samples])
         elif self.params['distribution'] == 'studentt':
             v = 3
             loc = mu
             factor = v / (v - 2)
-            scale = (variance / factor).sqrt()
+            scale = torch.nan_to_num( (variance / factor).sqrt(), 1e-9)
             yhat = StudentT(v, loc, scale).rsample([n_samples])
         elif self.params['distribution'] == 'laplace':
             loc = mu
-            scale = (0.5 * variance).sqrt()
+            scale = torch.nan_to_num( (0.5 * variance).sqrt(), 1e-9)
             yhat = Laplace(loc, scale).rsample([n_samples])
         elif self.params['distribution'] == 'logistic':
             loc = mu
-            scale = ((3 * variance) / np.pi**2).sqrt()
+            scale = torch.nan_to_num( ((3 * variance) / np.pi**2).sqrt(), 1e-9)
             base_dist = Uniform(torch.zeros(X.shape[0], device=X.device), torch.ones(X.shape[0], device=X.device))
             yhat = TransformedDistribution(base_dist, [SigmoidTransform().inv, AffineTransform(loc, scale)]).rsample([n_samples])
         elif self.params['distribution'] == 'lognormal':
             mu = mu.clamp(1e-9)
-            variance = variance.clamp(1e-9)
+            variance = torch.nan_to_num(variance, 1e-9).clamp(1e-9)
             scale = ((variance + mu**2) / mu**2).log().clamp(1e-9)
             loc = (mu.log() - 0.5 * scale).clamp(1e-9)
             yhat = LogNormal(loc, scale.sqrt()).rsample([n_samples])
         elif self.params['distribution'] == 'gamma':
+            variance = torch.nan_to_num(variance, 1e-9)
             rate = (mu.clamp(1e-9) / variance.clamp(1e-9))
             shape = mu.clamp(1e-9) * rate
             yhat = Gamma(shape, rate).rsample([n_samples])
         elif self.params['distribution'] == 'gumbel':
+            variance = torch.nan_to_num(variance, 1e-9)
             scale = (6 * variance / np.pi**2).sqrt().clamp(1e-9)
             loc = mu - scale * np.euler_gamma
             yhat = Gumbel(loc, scale).rsample([n_samples]) 
         elif self.params['distribution'] == 'weibull':
+            variance = torch.nan_to_num(variance, 1e-9)
             # This is a little bit hacky..
             def weibull_params(k):
                 gamma = lambda x: torch.exp(torch.lgamma(1 + x))   
@@ -459,7 +462,8 @@ class PGBM(nn.Module):
 
         elif self.params['distribution'] == 'negativebinomial':
             loc = mu.clamp(1e-9)
-            eps = 1e-6
+            eps = 1e-9
+            variance = torch.nan_to_num(variance, 1e-9)
             scale = torch.maximum(loc + eps, variance).clamp(1e-9)
             probs = (1 - (loc / scale)).clamp(0, 0.99999)
             counts = (-loc**2 / (loc - scale)).clamp(eps)
