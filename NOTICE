@@ -56,6 +56,8 @@ We use the following datasets from the UCI Machine Learning Repository:
 	* [protein](https://archive.ics.uci.edu/ml/datasets/Physicochemical+Properties+of+Protein+Tertiary+Structure)
 	* [msd](https://archive.ics.uci.edu/ml/datasets/YearPredictionMSD)
 	* [higgs](https://archive.ics.uci.edu/ml/datasets/HIGGS) (pre-download and extract to pgbm/datasets)
-	* [m5](https://www.kaggle.com/c/m5-forecasting-accuracy/data) (pre-download and extract to pgbm/datasets)
+
+We use the following datasets from Kaggle:
+	* [m5](https://www.kaggle.com/c/m5-forecasting-accuracy/data) (pre-download and extract to pgbm/datasets/m5)
 
 

@@ -29,8 +29,13 @@ from torch.utils.cpp_extension import load
 parallelsum_kernel = load(name='parallelsum', sources=['pgbm/cuda/parallelsum.cpp', 'pgbm/cuda/parallelsum_kernel.cu'])
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(nn.Module):
-    def __init__(self, params):
+    def __init__(self, params=None):
         super(PGBM, self).__init__()
+        # Load params
+        if params is None:
+            params = {}
+        self.params = self._init_params(params)                      
+
         # Create gpu functions for: bin creation, split decision and prediction functions
         if params['device'] == 'gpu':
             self.device_ids = params['gpu_device_ids']
@@ -42,28 +47,24 @@ class PGBM(nn.Module):
         else:
             self.output_device = torch.device('cpu')
         
-        device = self.output_device
-        self.params = {'min_split_gain':torch.tensor(params['min_split_gain'], device=device, dtype=torch.float32),
-                          'min_data_in_leaf':torch.tensor(params['min_data_in_leaf'], device=device, dtype=torch.int32),
-                          'max_bin':params['max_bin'],
-                          'max_leaves':params['max_leaves'],
-                          'learning_rate':torch.tensor(params['learning_rate'], device=device, dtype=torch.float32),
-                          'n_estimators':params['n_estimators'],
-                          'verbose':params['verbose'],
-                          'early_stopping_rounds':params['early_stopping_rounds'],
-                          'feature_fraction':params['feature_fraction'],
-                          'bagging_fraction':params['bagging_fraction'],
-                          'seed':params['seed'],
-                          'lambda':torch.tensor(params['lambda'], device=device, dtype=torch.float32),
-                          'tree_correlation':torch.tensor(params['tree_correlation'], device=device, dtype=torch.float32),
-                          'device':params['device'],
-                          'derivatives':params['derivatives'],
-                          'distribution':params['distribution']
-                          }                        
-
+        # Set some additional params
         self.params['max_nodes'] = self.params['max_leaves'] - 1
         torch.manual_seed(self.params['seed'])
-        self.epsilon = 1e-3
+        self.epsilon = 1e-6
+    
+    def _init_params(self, params):
+        # self.params = {}
+        params_new = {}
+        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation', 'max_leaves',
+                       'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
+                       'seed', 'device', 'output_device', 'gpu_device_ids', 'derivatives', 'distribution']
+        param_defaults = [0.0, 20, 0.01, 1.0, 0.03, 32, 256, 100, 1, 100, 1, 1, 0, 'cpu', 'cpu', (0,), 'exact', 'normal']
+        for i, param in enumerate(param_names):
+            params_new[param] = params[param] if param in params else param_defaults[i]
+            if i < 5:
+                params_new[param] = torch.tensor(params_new[param], device=self.output_device, dtype=torch.float32)
+        
+        return params_new
         
     def _create_feature_bins(self, X):
         # Create array that contains the bins
@@ -156,7 +157,7 @@ class PGBM(nn.Module):
                     split_right = ~split_left * split_node
                     split_left = split_left * split_node
                     # Split when enough data in leafs                        
-                    if (split_left.float().sum() > self.params['min_data_in_leaf']) & (split_right.float().sum() > self.params['min_data_in_leaf']):
+                    if (split_left.sum() > self.params['min_data_in_leaf']) & (split_right.sum() > self.params['min_data_in_leaf']):
                         # Save split information
                         self.nodes_idx[estimator, self.node_idx] = node
                         self.nodes_split_feature[estimator, self.node_idx] = sample_features[split_feature_sample] 
