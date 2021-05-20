@@ -21,9 +21,12 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
 
 ### Examples ###
+See the [demos](https://github.com/elephaint/pgbm/tree/main/demos) folder for more examples. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
+
+#### Example 1: default settings ####
 Below is a simple example that aims to predict house prices for the [Boston Housing dataset](https://archive.ics.uci.edu/ml/machine-learning-databases/housing/). 
 
-First, we import the necessary packages:
+First, we import the necessary packages. Note that the first time this can take longer due to the JIT-compilation of the CUDA-kernel. However, in this simple example we will train on the CPU.
 ```
 import torch
 import pgbm
@@ -79,7 +82,23 @@ plt.plot(yhat_dist_pgbm.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
 plt.plot(yhat_dist_pgbm.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
 plt.legend()
 ```
-See the [demos](https://github.com/elephaint/pgbm/tree/main/demos) folder for more examples. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric (see the demos folder for an example).
+[Insert plot]
+
+#### Example 2: Training on GPU ####
+For training on GPU, it is required to set the following default parametes:
+```
+params['device'] = 'gpu'
+params['output_device'] = 'gpu'
+```
+By default PGBM will train on the GPU at the first index (0) and return the results at that device. This corresponds to the following parameter:
+```
+params['gpu_device_ids'] = (0,)
+```
+If one would like to perform multi-gpu training and use different device ids, just list the device ids:
+```
+params['gpu_device_ids'] = (1, 2, 3)
+```
+In the latter case, GPUs corresponding to id 1 to 3 will be used, where device with id 1 will be used to return the results to.
 
 ### Experiments ###
 The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder.
@@ -94,7 +113,8 @@ This project is licensed under the terms of the [Apache 2.0 license](https://git
 We intend to have the package as lightweight as possible.
 
 - [x] ~~Add extreme value distributions such as Gumbel and Weibull to distribution choices.~~
-- [ ] Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)
-- [ ] Set default values for learning parameters.
+- [x] ~~Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)~~
+- [x] ~~Set default values for learning parameters.~~
+- [ ] Support feature explainer
 - [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).
 - [ ] Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`.
