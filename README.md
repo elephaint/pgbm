@@ -83,7 +83,7 @@ plt.legend()
 ```
 
 ### Hyperparameters ###
-See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for an overview of the main hyperparameters of PGBM.
+See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for an overview of the hyperparameters of PGBM.
 
 ### Experiments ###
 The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder.
