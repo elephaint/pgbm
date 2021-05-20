@@ -41,7 +41,8 @@ class PGBM(nn.Module):
             self.device_ids = params['gpu_device_ids']
             self.parallel_split_decision = parallel.replicate(_split_decision(params['max_bin']), self.device_ids)
             if params['output_device'] == 'gpu':
-                self.output_device = params['gpu_device_ids'][0]
+                output_id = params['gpu_device_ids'][0]
+                self.output_device = params['gpu_device_ids'][output_id]
             else:
                 self.output_device = torch.device('cpu')
         else:
