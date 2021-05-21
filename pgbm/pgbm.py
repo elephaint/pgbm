@@ -86,15 +86,20 @@ class PGBM(nn.Module):
             
         return bins
     
-    def _objective_approx(self, yhat_train, y, levels):
+    def _objective_approx(self, yhat_train, y, levels=None):
         yhat = yhat_train.detach()
         yhat.requires_grad = True
-        loss = self.loss(yhat, y, levels)
-        gradient = grad(loss, yhat)[0]
         yhat_upper = yhat + self.epsilon
         yhat_lower = yhat - self.epsilon
-        loss_upper = self.loss(yhat_upper, y, levels)
-        loss_lower = self.loss(yhat_lower, y, levels)
+        if levels is not None:
+            loss = self.loss(yhat, y, levels)
+            loss_upper = self.loss(yhat_upper, y, levels)
+            loss_lower = self.loss(yhat_lower, y, levels)
+        else: 
+            loss = self.loss(yhat, y)
+            loss_upper = self.loss(yhat_upper, y)
+            loss_lower = self.loss(yhat_lower, y)            
+        gradient = grad(loss, yhat)[0]
         gradient_upper = grad(loss_upper, yhat_upper)[0]
         gradient_lower = grad(loss_lower, yhat_lower)[0]
         hessian = (gradient_upper - gradient_lower) / (2 * self.epsilon)
