@@ -1,3 +1,5 @@
+![Airlab Amsterdam](https://icai.ai/wp-content/uploads/2020/01/AIRLabAmsterdam-10-6-gecomprimeerd-transparant.png)
+
 # PGBM #
 
 Probabilistic Gradient Boosting Machines (PGBM) is a probabilistic gradient boosting framework in Python based on PyTorch. It provides the following advantages over existing frameworks:
@@ -95,6 +97,9 @@ The experiments from our paper can be replicated by running the scripts in the [
 
 ### License ###
 This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE).
+
+### Acknowledgements ###
+
 
 ### ToDo ###
 We intend to have the package as lightweight as possible.

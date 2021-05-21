@@ -56,6 +56,7 @@ crps = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm).mean()
 print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
 #%% Plot all samples
+plt.rcParams.update({'font.size': 22})
 plt.plot(test_data[1], 'o', label='Actual')
 plt.plot(yhat_point_pgbm.cpu(), 'ko', label='Point prediction PGBM')
 plt.plot(yhat_dist_pgbm.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
