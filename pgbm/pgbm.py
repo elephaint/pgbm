@@ -35,18 +35,6 @@ class PGBM(nn.Module):
         if params is None:
             params = {}
         self.params = self._init_params(params)                      
-
-        # Create gpu functions for: bin creation, split decision and prediction functions
-        if params['device'] == 'gpu':
-            self.device_ids = params['gpu_device_ids']
-            self.parallel_split_decision = parallel.replicate(_split_decision(params['max_bin']), self.device_ids)
-            if params['output_device'] == 'gpu':
-                output_id = params['gpu_device_ids'][0]
-                self.output_device = params['gpu_device_ids'][output_id]
-            else:
-                self.output_device = torch.device('cpu')
-        else:
-            self.output_device = torch.device('cpu')
         
         # Set some additional params
         self.params['max_nodes'] = self.params['max_leaves'] - 1
@@ -59,7 +47,24 @@ class PGBM(nn.Module):
         param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
                        'seed', 'device', 'output_device', 'gpu_device_ids', 'derivatives', 'distribution']
-        param_defaults = [0.0, 20, 0.01, 1.0, 0.03, 32, 256, 100, 1, 100, 1, 1, 0, 'cpu', 'cpu', (0,), 'exact', 'normal']
+        param_defaults = [0.0, 2, 0.1, 1.0, 0.03, 32, 256, 100, 2, 100, 1, 1, 0, 'cpu', 'cpu', (0,), 'exact', 'normal']
+        
+        # Create gpu functions for split decision
+        if 'device' in params:
+            if params['device'] == 'gpu':
+                self.device_ids = params['gpu_device_ids'] if 'gpu_device_ids' in params else (0,)
+                max_bin = params['max_bin'] if 'max_bin' in params else 256
+                self.parallel_split_decision = parallel.replicate(_split_decision(max_bin), self.device_ids)
+                if params['output_device'] == 'gpu':
+                    output_id = params['gpu_device_ids'][0]
+                    self.output_device = params['gpu_device_ids'][output_id]
+                else:
+                    self.output_device = torch.device('cpu')
+            else:
+                self.output_device = torch.device('cpu')
+        else: 
+            self.output_device = torch.device('cpu')
+                   
         for i, param in enumerate(param_names):
             params_new[param] = params[param] if param in params else param_defaults[i]
             if i < 5:

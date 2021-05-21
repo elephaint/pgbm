@@ -28,7 +28,7 @@ from ngboost import NGBRegressor
 #%% Objective for pgbm
 def mseloss_objective(yhat, y):
     gradient = (yhat - y)
-    hessian = yhat*0. + 1
+    hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
@@ -46,21 +46,21 @@ params = {'min_split_gain':0,
       'learning_rate':0.1,
       'n_estimators':2000,
       'verbose':2,
-      'early_stopping_rounds':2000,
+      'early_stopping_rounds':100,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
       'lambda':1,
       'tree_correlation':0.03,
       'device':'cpu',
-      'output_device':'gpu',
+      'output_device':'cpu',
       'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
 #%% Train pgbm vs NGBoost
 n_splits = 1
 n_samples = 1000
-base_estimators = 200
+base_estimators = 2000
 rmse, crps = np.zeros((n_splits, 2)), np.zeros((n_splits, 2))
 #%% Loop
 torchdata = lambda x : torch.from_numpy(x).float()
@@ -86,28 +86,28 @@ for i in range(n_splits):
     # Set iterations to best iteration
     params['n_estimators'] = model.best_iteration + 1
     # Retrain on full set   
-    print(f'PGBM Training on full dataset...')
+    print('PGBM Training on full dataset...')
     model = pgbm.PGBM(params)
     model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
     #% Predictions
-    print(f'PGBM Prediction...')
+    print('PGBM Prediction...')
     yhat_point_pgbm = model.predict(test_data[0])
     yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
     # Scoring
     rmse[i, 0] = rmseloss_metric(yhat_point_pgbm.cpu(), y_test).numpy()
     crps[i, 0] = ps.crps_ensemble(y_test, yhat_dist_pgbm.cpu().T).mean()
     # NGB
-    print(f'NGB Validating on partial dataset...')
+    print('NGB Validating on partial dataset...')
     start = time.perf_counter()
     ngb = NGBRegressor(n_estimators=base_estimators)
     ngb.fit(X_train_val, y_train_val, X_val, y_val, early_stopping_rounds=2000)
     end = time.perf_counter()
-    print(f'Fold time: {end - start:.2f}s')
+    print('Fold time: {end - start:.2f}s')
     best_iter = ngb.best_val_loss_itr + 1
     ngb = NGBRegressor(n_estimators=best_iter)    
-    print(f'NGB Training on full dataset...')
+    print('NGB Training on full dataset...')
     ngb.fit(X_train, y_train)
-    print(f'NGB Prediction...')    
+    print('NGB Prediction...')    
     yhat_point_ngb = ngb.predict(X_test)
     ngb_dist = ngb.pred_dist(X_test)
     yhat_dist_ngb = ngb_dist.sample(n_samples)

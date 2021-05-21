@@ -36,7 +36,7 @@ def rmseloss_metric(yhat, y):
     return loss
 #%% Load data
 X, y = load_boston(return_X_y=True)
-#%% Set parameters to train on GPU
+#%% Set parameters to train on multiple GPUs, at index 1 and 2
 params = {'device': 'gpu',
           'output_device': 'gpu',
           'gpu_device_ids': (1, 2)}
@@ -48,14 +48,14 @@ torchdata = lambda x : torch.from_numpy(x).float()
 train_data = (torchdata(X_train), torchdata(y_train))
 test_data = (torchdata(X_test), torchdata(y_test))
 # Train on set   
-model = pgbm.PGBM()
+model = pgbm.PGBM(params)
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 #% Point and probabilistic predictions
 yhat_point_pgbm = model.predict(test_data[0])
 yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=1000)
-# Scoring
-rmse = rmseloss_metric(yhat_point_pgbm, test_data[1])
-crps = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm).mean()    
+# Scoring. Note: move the outputs back to CPU
+rmse = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1])
+crps = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm.cpu()).mean()     
 # Print final scores
 print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')

@@ -17,7 +17,6 @@
 
 """
 import pandas as pd
-import matplotlib.pyplot as plt # for plotting pictures
 import numpy as np
 import time
 import lightgbm as lgb

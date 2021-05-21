@@ -16,6 +16,7 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
+#%% Import packages
 import torch
 import time
 import pgbm
@@ -24,7 +25,7 @@ import properscoring as ps
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from pgbm.datasets import get_dataset, get_fold
+from datasets import get_dataset, get_fold
 #%% Objective
 def objective(yhat, y):
     gradient = (yhat - y)

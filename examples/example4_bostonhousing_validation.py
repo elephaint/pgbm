@@ -44,20 +44,20 @@ params = {'min_split_gain':0,
       'learning_rate':0.1,
       'n_estimators':2000,
       'verbose':2,
-      'early_stopping_rounds':2000,
+      'early_stopping_rounds':100,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
       'lambda':1,
       'tree_correlation':0.03,
-      'device':'cpu',
+      'device':'gpu',
       'output_device':'gpu',
       'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
 
 n_samples = 1000
-n_splits = 5
+n_splits = 2
 base_estimators = 2000
 #%% Validation loop
 torchdata = lambda x : torch.from_numpy(x).float()
@@ -88,8 +88,8 @@ for i in range(n_splits):
     yhat_point_pgbm = model.predict(test_data[0])
     yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
     # Scoring
-    rmse[i] = rmseloss_metric(yhat_point_pgbm, test_data[1])
-    crps[i] = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm).mean()           
+    rmse[i] = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1])
+    crps[i] = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm.cpu()).mean()           
     # Print scores current fold
     print(f'RMSE Fold {i+1}, {rmse[i]:.2f}')
     print(f'CRPS Fold {i+1}, {crps[i]:.2f}')

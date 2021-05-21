@@ -17,14 +17,10 @@
 
 """
 import pandas as pd
-import matplotlib.pyplot as plt # for plotting pictures
 import numpy as np
 import time
 import pgbm
 import torch
-from importlib import reload
-from torch.autograd import grad
-
 #%% Load data
 data = pd.read_hdf('pgbm/datasets/m5/m5_dataset_products.h5', key='data')
 # Remove last 28 days for now...

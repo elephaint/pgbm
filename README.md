@@ -86,7 +86,7 @@ plt.legend()
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for an overview of the hyperparameters of PGBM.
 
 ### Experiments ###
-The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder.
+The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder (Higgs) and datasets/m5 (m5).
 
 ### Reference ###
 [Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).

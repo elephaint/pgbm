@@ -16,17 +16,18 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
+#%% Import packages
 import torch
 import time
 import pgbm
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
-from pgbm.datasets import get_dataset, get_fold
+from datasets import get_dataset, get_fold
 #%% Objective
 def objective(yhat, y):
     gradient = (yhat - y)
-    hessian = 1 + yhat*0.
+    hessian = torch.ones_like(yhat)
     
     return gradient, hessian
 

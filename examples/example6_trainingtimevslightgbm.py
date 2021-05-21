@@ -22,11 +22,11 @@ import time
 import pgbm
 from sklearn.model_selection import train_test_split
 import lightgbm as lgb
-from pgbm.datasets import get_dataset, get_fold
+from datasets import get_dataset, get_fold
 #%% Objective for pgbm
 def mseloss_objective(yhat, y):
     gradient = (yhat - y)
-    hessian = yhat*0. + 1
+    hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
@@ -36,7 +36,7 @@ def rmseloss_metric(yhat, y):
     return loss
 #%% Load data
 #datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
-dataset = 'higgs'
+dataset = 'higgs' # Download higgs.csv to folder datasets first - see link in 'NOTICE'
 data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, random_state=0)
 X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
@@ -48,7 +48,7 @@ params = {'min_split_gain':0,
       'learning_rate':0.1,
       'n_estimators':100,
       'verbose':2,
-      'early_stopping_rounds':2000,
+      'early_stopping_rounds':100,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
