@@ -8,15 +8,18 @@ Probabilistic Gradient Boosting Machines (PGBM) is a probabilistic gradient boos
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link).
 
 ### Installation ###
-* Run `pip install pgbm` within the virtual environment of your choice.
-* Run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
-* Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer to compile the CUDA kernel. After that, the compiled kernel is saved to a cache folder in your local virtual environment. 
+Run `pip install pgbm` within the virtual environment of your choice.
+
+Verification:
+* Download & run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
+* Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 
 #### Dependencies ####
 
 * PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/)
 * Numpy >= 1.19.2 (install via `pip` or `conda`; https://github.com/numpy/numpy)
-* PGBM uses a custom CUDA kernel which needs to be compiled; this may require installing a suitable compiler (e.g. gcc) although installing PyTorch according to the official docs should install all the required dependencies.
+* CUDA Toolkit 11.0 (or one matching your PyTorch distribution) (https://developer.nvidia.com/cuda-toolkit)
+* PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but contact the author if you find it still not working even after installing these dependencies. 
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
 
 ### Examples ###
@@ -89,20 +92,10 @@ See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) for an 
 ### Reference ###
 [Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).
 
-The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder (Higgs) and datasets/m5 (m5).
+The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/paper/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/paper/datasets) folder (Higgs) and to datasets/m5 (m5).
 
 ### License ###
 This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE).
 
 ### Acknowledgements ###
 This project was developed by [Airlab Amsterdam](https://icai.ai/airlab/).
-
-### ToDo ###
-We intend to have the package as lightweight as possible.
-
-- [x] ~~Add extreme value distributions such as Gumbel and Weibull to distribution choices.~~
-- [x] ~~Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)~~
-- [x] ~~Set default values for learning parameters.~~
-- [x] ~~Support feature explainer~~
-- [x] ~~Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`.~~
-- [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).

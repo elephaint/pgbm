@@ -1,6 +1,6 @@
 # Examples #
 
-This folder contains examples of PGBM. Our examples are aimed to illustrate the following:
+This folder contains examples of PGBM. The examples illustrate the following:
 * Examples 1-3: How to train PGBM: on CPU, GPU and multi-GPU.
 * Example 4: How to train PGBM using a validation loop.
 * Examples 5-6: How PGBM compares to other methods such as NGBoost and LightGBM.
@@ -29,6 +29,9 @@ PGBM employs the following set of hyperparameters (listed in alphabetical order)
 * `tree_correlation`, default=`0.03`. Tree correlation hyperparameter. This controls the amount of correlation we assume to exist between each subsequent tree in the ensemble. A good starting value is `log_10(n_samples) / 100`.
 * `verbose`, default=`2`. Flag to output metric results for each iteration. Set to `1` to supress output.
 
+# Function reference #
+
+
 # GPU training #
 For training on GPU, it is required to set the following hyperparameters:
 ```
@@ -43,4 +46,4 @@ If one would like to perform multi-gpu training and use different device ids, ju
 ```
 params['gpu_device_ids'] = (1, 2, 3)
 ```
-In the latter case, GPUs corresponding to id 1 to 3 will be used, where device with id 1 will be used to return the results to. 
+In the latter case, GPUs corresponding to id 1 to 3 will be used, where device with id 1 will be used to return the results to. Note that for multi-gpu training, all data is still loaded onto the GPU with the first id. Only the split decision is parallelized across multiple GPUs when using multiple GPUs. Hence, the package does not yet support full Torch distributed across devices and nodes, but only across multiple devices on the same node.
