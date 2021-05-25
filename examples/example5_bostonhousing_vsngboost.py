@@ -18,7 +18,7 @@
 """
 import torch
 import time
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import numpy as np
@@ -58,51 +58,49 @@ params = {'min_split_gain':0,
       'derivatives':'exact',
       'distribution':'normal'}
 #%% Train pgbm vs NGBoost
-n_splits = 1
+n_splits = 2
 n_samples = 1000
 base_estimators = 2000
 rmse, crps = np.zeros((n_splits, 2)), np.zeros((n_splits, 2))
 #%% Loop
-torchdata = lambda x : torch.from_numpy(x).float()
 for i in range(n_splits):
     start = time.perf_counter()
     print(f'Fold {i+1}/{n_splits}')
     # Split for model validation
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=i)
     X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=i)
-    # Build torchdata datasets
-    train_data = (torchdata(X_train), torchdata(y_train))
-    train_val_data = (torchdata(X_train_val), torchdata(y_train_val))
-    valid_data = (torchdata(X_val), torchdata(y_val))
-    test_data = (torchdata(X_test), torchdata(y_test))
+    # Build datasets
+    train_data = (X_train, y_train)
+    train_val_data = (X_train_val, y_train_val)
+    valid_data = (X_val, y_val)
     # Train to retrieve best iteration
     print('PGBM Validating on partial dataset...')
     params['n_estimators'] = base_estimators
     start = time.perf_counter()    
-    model = pgbm.PGBM(params)
-    model.train(train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data)
+    model = PGBM()
+    model.train(train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
     end = time.perf_counter()
     print(f'Fold time: {end - start:.2f}s')
     # Set iterations to best iteration
     params['n_estimators'] = model.best_iteration + 1
     # Retrain on full set   
     print('PGBM Training on full dataset...')
-    model = pgbm.PGBM(params)
-    model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
+    model = PGBM()
+    model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
     #% Predictions
     print('PGBM Prediction...')
-    yhat_point_pgbm = model.predict(test_data[0])
-    yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
+    yhat_point_pgbm = model.predict(X_test)
+    yhat_dist_pgbm  = model.predict_dist(X_test, n_samples=n_samples)
     # Scoring
-    rmse[i, 0] = rmseloss_metric(yhat_point_pgbm.cpu(), y_test).numpy()
-    crps[i, 0] = ps.crps_ensemble(y_test, yhat_dist_pgbm.cpu().T).mean()
+    rmse[i, 0] = model.metric(yhat_point_pgbm.cpu(), y_test).numpy()
+    crps[i, 0] = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()
     # NGB
     print('NGB Validating on partial dataset...')
     start = time.perf_counter()
     ngb = NGBRegressor(n_estimators=base_estimators)
     ngb.fit(X_train_val, y_train_val, X_val, y_val, early_stopping_rounds=2000)
     end = time.perf_counter()
-    print('Fold time: {end - start:.2f}s')
+    print(f'Fold time: {end - start:.2f}s')
     best_iter = ngb.best_val_loss_itr + 1
     ngb = NGBRegressor(n_estimators=best_iter)    
     print('NGB Training on full dataset...')
@@ -112,8 +110,8 @@ for i in range(n_splits):
     ngb_dist = ngb.pred_dist(X_test)
     yhat_dist_ngb = ngb_dist.sample(n_samples)
     # Scoring NGB
-    rmse[i, 1] = rmseloss_metric(torch.from_numpy(yhat_point_ngb), test_data[1]).numpy()
-    crps[i, 1] = ps.crps_ensemble(test_data[1], yhat_dist_ngb.T).mean()        
+    rmse[i, 1] = rmseloss_metric(torch.from_numpy(yhat_point_ngb), y_test).numpy()
+    crps[i, 1] = ps.crps_ensemble(y_test, yhat_dist_ngb.T).mean()        
     # Print scores current fold
     print(f'RMSE Fold {i+1}, PGBM: {rmse[i, 0]:.2f}, NGB: {rmse[i, 1]:.2f}')
     print(f'CRPS Fold {i+1}, PGBM: {crps[i, 0]:.2f}, NGB: {crps[i, 1]:.2f}')
@@ -122,7 +120,7 @@ for i in range(n_splits):
 print(f'RMSE PGBM: {rmse[:, 0].mean():.2f}+-{rmse[:, 0].std():.2f}, NGB: {rmse[:, 1].mean():.2f}+-{rmse[:, 1].std():.2f}')
 print(f'CRPS PGBM: {crps[:, 0].mean():.2f}+-{crps[:, 0].std():.2f}, NGB: {crps[:, 1].mean():.2f}+-{crps[:, 1].std():.2f}')
 #%% Plot all sample
-plt.plot(test_data[1], 'o', label='Actual')
+plt.plot(y_test, 'o', label='Actual')
 plt.plot(yhat_point_pgbm.cpu(), 'ko', label='Point prediction PGBM')
 plt.plot(yhat_point_ngb, 'ro', label='Point prediction NGBoost')
 plt.plot(yhat_dist_pgbm.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')

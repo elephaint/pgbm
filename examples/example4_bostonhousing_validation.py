@@ -19,7 +19,7 @@
 
 #%% Load packages
 import torch
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
@@ -60,36 +60,34 @@ n_samples = 1000
 n_splits = 2
 base_estimators = 2000
 #%% Validation loop
-torchdata = lambda x : torch.from_numpy(x).float()
 rmse, crps = torch.zeros(n_splits), torch.zeros(n_splits)
 for i in range(n_splits):
     print(f'Fold {i+1}/{n_splits}')
     # Split for model validation
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=i)
     X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=i)
-    # Build torchdata datasets
-    train_data = (torchdata(X_train), torchdata(y_train))
-    train_val_data = (torchdata(X_train_val), torchdata(y_train_val))
-    valid_data = (torchdata(X_val), torchdata(y_val))
-    test_data = (torchdata(X_test), torchdata(y_test))
+    # Build datasets
+    train_data = (X_train, y_train)
+    train_val_data = (X_train_val, y_train_val)
+    valid_data = (X_val, y_val)
     # Train to retrieve best iteration
     print('PGBM Validating on partial dataset...')
     params['n_estimators'] = base_estimators
-    model = pgbm.PGBM(params)
-    model.train(train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data)
+    model = PGBM()
+    model.train(train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
     # Set iterations to best iteration
     params['n_estimators'] = model.best_iteration + 1
     # Retrain on full set   
     print('PGBM Training on full dataset...')
-    model = pgbm.PGBM(params)
-    model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
+    model = PGBM()
+    model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
     #% Predictions
     print('PGBM Prediction...')
-    yhat_point_pgbm = model.predict(test_data[0])
-    yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
+    yhat_point = model.predict(X_test)
+    yhat_dist = model.predict_dist(X_test, n_samples=n_samples)
     # Scoring
-    rmse[i] = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1])
-    crps[i] = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm.cpu()).mean()           
+    rmse[i] = model.metric(yhat_point.cpu(), y_test)
+    crps[i] = model.crps_ensemble(yhat_dist.cpu(), y_test).mean()           
     # Print scores current fold
     print(f'RMSE Fold {i+1}, {rmse[i]:.2f}')
     print(f'CRPS Fold {i+1}, {crps[i]:.2f}')
@@ -98,8 +96,8 @@ for i in range(n_splits):
 print(f'RMSE {rmse.mean():.2f}+-{rmse.std():.2f}')
 print(f'CRPS {crps.mean():.2f}+-{crps.std():.2f}')
 #%% Plot all samples
-plt.plot(test_data[1], 'o', label='Actual')
-plt.plot(yhat_point_pgbm.cpu(), 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist_pgbm.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist_pgbm.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
+plt.plot(y_test, 'o', label='Actual')
+plt.plot(yhat_point.cpu(), 'ko', label='Point prediction PGBM')
+plt.plot(yhat_dist.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
+plt.plot(yhat_dist.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
 plt.legend()

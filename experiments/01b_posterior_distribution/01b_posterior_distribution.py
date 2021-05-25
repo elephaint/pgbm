@@ -19,7 +19,7 @@
 #%% Import packages
 import torch
 import time
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
@@ -63,7 +63,6 @@ datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', '
 # datasets = ['energy']
 base_estimators = 2000
 df_val = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rho','distribution','crps_validation'])
-torchdata = lambda x : torch.from_numpy(x).float()
 for i, dataset in enumerate(datasets):
     if dataset == 'msd':
         params['bagging_fraction'] = 0.1
@@ -77,17 +76,16 @@ for i, dataset in enumerate(datasets):
     data = get_dataset(dataset)
     X_train, X_test, y_train, y_test = get_fold(dataset, data, 0)
     X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
-    # Build torchdata datasets
-    train_data = (torchdata(X_train), torchdata(y_train))
-    train_val_data = (torchdata(X_train_val), torchdata(y_train_val))
-    valid_data = (torchdata(X_val), torchdata(y_val))
-    test_data = (torchdata(X_test), torchdata(y_test))
+    # Build datasets
+    train_data = (X_train, y_train)
+    train_val_data = (X_train_val, y_train_val)
+    valid_data = (X_val, y_val)
     params['n_estimators'] = base_estimators
     # Train to retrieve best iteration
     print('Validating...')
-    model = pgbm.PGBM(params)
+    model = PGBM()
     start = time.perf_counter()    
-    model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data)
+    model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
     torch.cuda.synchronize()
     end = time.perf_counter()
     validation_time = end - start
@@ -101,8 +99,8 @@ for i, dataset in enumerate(datasets):
             print(f'Correlation {i+1} / distribution {j+1}')
             model.params['tree_correlation'] = tree_correlation
             model.params['distribution'] = distribution
-            yhat_dist_pgbm = model.predict_dist(valid_data[0], n_samples=n_samples)
-            crps_pgbm[i, j] = pgbm.crps_ensemble(valid_data[1].to(device), yhat_dist_pgbm).mean()
+            yhat_dist_pgbm = model.predict_dist(X_val, n_samples=n_samples)
+            crps_pgbm[i, j] = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_val).mean()
             df_val = df_val.append({'method':method, 'dataset':dataset, 'fold':0, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rho': tree_correlation, 'distribution': distribution, 'crps_validation': crps_pgbm[i, j]}, ignore_index=True)
 #%% Save file
 filename_val = "distribution_variation_validation.csv"
@@ -126,34 +124,32 @@ for i, dataset in enumerate(datasets):
     # Get data
     data = get_dataset(dataset)
     X_train, X_test, y_train, y_test = get_fold(dataset, data, 0)
-    # Build torchdata datasets
-    train_data = (torchdata(X_train), torchdata(y_train))
-    test_data = (torchdata(X_test), torchdata(y_test))
+    train_data = (X_train, y_train)
     # Set iterations to best iteration
     params['n_estimators'] = int(df_base[df_base.dataset == dataset]['test_estimators'])
     # Retrain on full set   
     print('Training...')
-    model = pgbm.PGBM(params)
-    model.train(train_data, objective=objective, metric=rmseloss_metric)
+    model = PGBM()
+    model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
     #% Predictions base case
     print('Prediction...')
-    yhat_point_pgbm = model.predict(test_data[0])
+    yhat_point_pgbm = model.predict(X_test)
     model.params['tree_correlation'] = np.log10(len(X_train)) / 100
     model.params['distribution'] = 'normal'
-    yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
+    yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
     # Scoring
-    rmse_pgbm_new = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1]).numpy()
-    crps_pgbm_new = pgbm.crps_ensemble(test_data[1].to(device), yhat_dist_pgbm).mean()
+    rmse_pgbm_new = model.metric(yhat_point_pgbm.cpu(), y_test).numpy()
+    crps_pgbm_new = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()
     # Save data
     df_test = df_test.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse_pgbm_new, 'crps_test': crps_pgbm_new, 'validation_time':validation_time, 'rho':0.03 ,'distribution':'normal','case':'base'}, ignore_index=True)
     # Optimal case
     row, col = np.unravel_index(crps_pgbm.argmin(), crps_pgbm.shape)
     model.params['tree_correlation'] = df_val[df_val.dataset == dataset]['rho'].item()
     model.params['distribution'] = df_val[df_val.dataset == dataset]['distribution'].item()
-    yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
+    yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
     # Scoring
-    rmse_pgbm_new = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1]).numpy()
-    crps_pgbm_new = pgbm.crps_ensemble(test_data[1].to(device), yhat_dist_pgbm).mean()  
+    rmse_pgbm_new = model.metric(yhat_point_pgbm.cpu(), y_test).numpy()
+    crps_pgbm_new = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean() 
     # Save data
     df_test = df_test.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse_pgbm_new, 'crps_test': crps_pgbm_new.numpy().item(), 'validation_time':validation_time, 'rho':model.params['tree_correlation'] ,'distribution':model.params['distribution'],'case':'optimal'}, ignore_index=True)
 

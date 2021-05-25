@@ -19,7 +19,7 @@
 #%%
 import torch
 import time
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 from datasets import get_dataset, get_fold
@@ -61,13 +61,12 @@ params = {'min_split_gain':0,
       'distribution':'normal'}
 #%% PGBM
 # Tuples of datasets in torch tensors
-torchdata = lambda x : torch.from_numpy(x).float()
-train_val_data = (torchdata(X_train_val), torchdata(y_train_val))
-valid_data = (torchdata(X_val), torchdata(y_val))
+train_val_data = (X_train_val, y_train_val)
+valid_data = (X_val, y_val)
 # Train to retrieve best iteration
 start = time.perf_counter()
-model = pgbm.PGBM(params)    
-model.train(train_set=train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data)
+model = PGBM()    
+model.train(train_set=train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
 torch.cuda.synchronize()
 end = time.perf_counter()
 print(f'Fold time: {end - start:.2f}s')

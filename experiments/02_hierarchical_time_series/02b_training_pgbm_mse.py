@@ -16,10 +16,11 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
+#%% Import pacakges
 import pandas as pd
 import numpy as np
 import time
-import pgbm
+from pgbm import PGBM
 import torch
 #%% Load data
 data = pd.read_hdf('pgbm/datasets/m5/m5_dataset_products.h5', key='data')
@@ -98,13 +99,12 @@ X_train, y_train = X[X.date <= train_last_date], y[y.date <= train_last_date]
 X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_val, y_val = X[(X.date >= val_first_date) & (X.date <= val_last_date)], y[(y.date >= val_first_date) & (y.date <= val_last_date)]
 X_val, y_val = X_val.drop(columns='date'), y_val.drop(columns='date')
-torchdata = lambda x : torch.from_numpy(x.values).float()
-train_data = (torchdata(X_train), torchdata(y_train.squeeze()))
-valid_data = (torchdata(X_val), torchdata(y_val.squeeze()))
+train_data = (X_train, y_train)
+valid_data = (X_val, y_val)
 # Train
-model = pgbm.PGBM(params)
+model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data)
+model.train(train_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 #%% Test loop
@@ -117,21 +117,20 @@ X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_test, y_test = X[X.date >= test_first_date], y[y.date >= test_first_date]
 iteminfo = X_test[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
 X_test, y_test = X_test.drop(columns='date'), y_test.drop(columns='date')
-torchdata = lambda x : torch.from_numpy(x.values).float()
-train_data = (torchdata(X_train), torchdata(y_train.squeeze()))
-test_data = (torchdata(X_test), torchdata(y_test.squeeze()))
+train_data = (X_train, y_train)
+test_data = (X_test, y_test)
 # Train
 params['n_estimators'] = model.best_iteration + 1
-model = pgbm.PGBM(params)
+model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=objective, metric=rmseloss_metric)
+model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 # Save model
 torch.save(model, 'pgbm/experiments/02_hierarchical_time_series/pgbm_mse')
 # Predict 
 start = time.perf_counter()
-yhat = model.predict(test_data[0])
+yhat = model.predict(X_test)
 model.params['tree_correlation'] = np.log10(len(X_train)) / 100
 yhat_dist = model.predict_dist(test_data[0], n_samples=1000)
 end = time.perf_counter()

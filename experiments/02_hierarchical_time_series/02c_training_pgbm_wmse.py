@@ -16,10 +16,11 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
+#%% Import packages
 import pandas as pd
 import numpy as np
 import time
-import pgbm
+from pgbm import PGBM
 import torch
 #%% Load data
 data = pd.read_hdf('pgbm/datasets/m5/m5_dataset_products.h5', key='data')
@@ -70,9 +71,8 @@ iteminfo = X_train[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
 X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_val, y_val = X[(X.date >= val_first_date) & (X.date <= val_last_date)], y[(y.date >= val_first_date) & (y.date <= val_last_date)]
 X_val, y_val = X_val.drop(columns='date'), y_val.drop(columns='date')
-torchdata = lambda x : torch.from_numpy(x.values).float()
-train_data = (torchdata(X_train), torchdata(y_train.squeeze()))
-valid_data = (torchdata(X_val), torchdata(y_val.squeeze()))
+train_data = (X_train, y_train)
+valid_data = (X_val, y_val)
 # Create levels
 levels = []
 levels.append(torch.from_numpy(pd.get_dummies(iteminfo['date']).values).bool().to(device))
@@ -139,9 +139,9 @@ params = {'min_split_gain':0,
           'derivatives':'approx',
           'distribution':'normal'} 
 #%% Validation loop
-model = pgbm.PGBM(params)
+model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=wmse_objective, metric=rmseloss_metric, valid_set=valid_data, levels=levels)
+model.train(train_data, objective=wmse_objective, metric=rmseloss_metric, valid_set=valid_data, params=params, levels=levels)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 #%% Test loop
@@ -155,9 +155,8 @@ X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_test, y_test = X[X.date >= test_first_date], y[y.date >= test_first_date]
 iteminfo_test = X_test[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
 X_test, y_test = X_test.drop(columns='date'), y_test.drop(columns='date')
-torchdata = lambda x : torch.from_numpy(x.values).float()
-train_data = (torchdata(X_train), torchdata(y_train.squeeze()))
-test_data = (torchdata(X_test), torchdata(y_test.squeeze()))
+train_data = (X_train, y_train)
+test_data = (X_test, y_test)
 # Create levels
 levels = []
 levels.append(torch.from_numpy(pd.get_dummies(iteminfo_train['date']).values).bool().to(device))
@@ -165,9 +164,9 @@ levels.append(torch.from_numpy(pd.get_dummies(iteminfo_train['dept_id_enc']).val
 levels.append(torch.from_numpy(pd.get_dummies(iteminfo_train['cat_id_enc']).values).bool().to(device))
 # Train
 params['n_estimators'] = 294
-model = pgbm.PGBM(params)
+model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=wmse_objective, metric=rmseloss_metric, levels=levels)
+model.train(train_data, objective=wmse_objective, metric=rmseloss_metric, params=params, levels=levels)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 # Save model

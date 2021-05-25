@@ -18,8 +18,7 @@
 """
 
 #%% Load packages
-import torch
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
@@ -40,24 +39,21 @@ params = {'derivatives': 'approx'}
 #%% Train pgbm
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
-# Build tuples of torch datasets
-torchdata = lambda x : torch.from_numpy(x).float()
-train_data = (torchdata(X_train), torchdata(y_train))
-test_data = (torchdata(X_test), torchdata(y_test))
+train_data = (X_train, y_train)
 # Train on set   
-model = pgbm.PGBM(params)
-model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
+model = PGBM()
+model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
 #% Point and probabilistic predictions
-yhat_point_pgbm = model.predict(test_data[0])
-yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=1000)
+yhat_point_pgbm = model.predict(X_test)
+yhat_dist_pgbm = model.predict_dist(X_test, n_samples=1000)
 # Scoring. Note: move the outputs back to CPU
-rmse = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1])
-crps = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm.cpu()).mean()    
+rmse = model.metric(yhat_point_pgbm.cpu(), y_test)
+crps = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()    
 # Print final scores
 print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
 #%% Plot all samples
-plt.plot(test_data[1], 'o', label='Actual')
+plt.plot(y_test, 'o', label='Actual')
 plt.plot(yhat_point_pgbm.cpu(), 'ko', label='Point prediction PGBM')
 plt.plot(yhat_dist_pgbm.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
 plt.plot(yhat_dist_pgbm.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')

@@ -36,30 +36,22 @@ def rmseloss_metric(yhat, y):
     return loss
 #%% Load data
 X, y = load_boston(return_X_y=True)
-#%% Set parameters to train on GPU
-params = {'device': 'gpu',
-          'output_device': 'gpu',
-          'gpu_device_ids': (0, )}
 #%% Train pgbm
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 train_data = (X_train, y_train)
-# Train on set   
-model = PGBM()
-model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
+# Train on set 
+model = PGBM()  
+model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 #% Point and probabilistic predictions
 yhat_point = model.predict(X_test)
 yhat_dist = model.predict_dist(X_test, n_samples=1000)
 # Scoring
-rmse = model.metric(yhat_point.cpu(), y_test)
+rmse = model.metric(yhat_point, y_test)
 crps = model.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
 print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Plot all samples
-plt.rcParams.update({'font.size': 22})
-plt.plot(y_test, 'o', label='Actual')
-plt.plot(yhat_point.cpu(), 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
-plt.legend()
+#%% Plot feature importance
+feature_names = load_boston()['feature_names']
+plt.barh(feature_names, model.feature_importance)

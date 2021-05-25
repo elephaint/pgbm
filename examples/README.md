@@ -6,6 +6,7 @@ This folder contains examples of PGBM. Our examples are aimed to illustrate the 
 * Examples 5-6: How PGBM compares to other methods such as NGBoost and LightGBM.
 * Example 7: How the choice of output distribution can be optimized after training.
 * Example 8: How to use autodifferentiation for loss functions where no analytical gradient or hessian is provided.
+* Example 9: How to plot the feature importance of a learner after training.
 
 # Hyperparameters #
 PGBM employs the following set of hyperparameters (listed in alphabetical order):

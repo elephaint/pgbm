@@ -19,7 +19,7 @@
 #%% Import packages
 import torch
 import time
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 import properscoring as ps
 import pandas as pd
@@ -76,17 +76,16 @@ for i, dataset in enumerate(datasets):
         # Get data
         X_train, X_test, y_train, y_test = get_fold(dataset, data, fold)
         X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=fold)
-        # Build torchdata datasets
-        train_data = (torchdata(X_train), torchdata(y_train))
-        train_val_data = (torchdata(X_train_val), torchdata(y_train_val))
-        valid_data = (torchdata(X_val), torchdata(y_val))
-        test_data = (torchdata(X_test), torchdata(y_test))
+        # Build datasets
+        train_data = (X_train, y_train)
+        train_val_data = (X_train_val, y_train_val)
+        valid_data = (X_val, y_val)
         params['n_estimators'] = base_estimators
         # Train to retrieve best iteration
         print('Validating...')
-        model = pgbm.PGBM(params)
+        model = PGBM()
         start = time.perf_counter()    
-        model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data)
+        model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
         torch.cuda.synchronize()
         end = time.perf_counter()
         validation_time = end - start
@@ -95,15 +94,15 @@ for i, dataset in enumerate(datasets):
         params['n_estimators'] = model.best_iteration + 1
         # Retrain on full set   
         print('Training...')
-        model = pgbm.PGBM(params)
-        model.train(train_data, objective=objective, metric=rmseloss_metric)
+        model = PGBM()
+        model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
         #% Predictions
         print('Prediction...')
-        yhat_point = model.predict(test_data[0])
+        yhat_point = model.predict(X_test)
         model.params['tree_correlation'] = np.log10(len(X_train)) / 100
-        yhat_dist = model.predict_dist(test_data[0], n_samples=n_samples)
+        yhat_dist = model.predict_dist(X_test, n_samples=n_samples)
         # Scoring
-        rmse = rmseloss_metric(yhat_point.cpu(), test_data[1]).numpy()
+        rmse = rmseloss_metric(yhat_point.cpu(), y_test).numpy()
         crps = ps.crps_ensemble(y_test, yhat_dist.cpu().T).mean()
         # Save data
         df = df.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}, ignore_index=True)

@@ -19,7 +19,7 @@
 #%% Import packages
 import torch
 import time
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 import properscoring as ps
 import pandas as pd
@@ -68,7 +68,6 @@ datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', '
 base_estimators = 2000
 df_test = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rmse_test','crps_test','validation_time','rho'])
 df_val = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rho','crps'])
-torchdata = lambda x : torch.from_numpy(x).float()
 for i, dataset in enumerate(datasets):
     if dataset == 'msd':
         params['bagging_fraction'] = 0.1
@@ -78,17 +77,16 @@ for i, dataset in enumerate(datasets):
     data = get_dataset(dataset)
     X_train, X_test, y_train, y_test = get_fold(dataset, data, 0)
     X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
-    # Build torchdata datasets
-    train_data = (torchdata(X_train), torchdata(y_train))
-    train_val_data = (torchdata(X_train_val), torchdata(y_train_val))
-    valid_data = (torchdata(X_val), torchdata(y_val))
-    test_data = (torchdata(X_test), torchdata(y_test))
+    # Build datasets
+    train_data = (X_train, y_train)
+    train_val_data = (X_train_val, y_train_val)
+    valid_data = (X_val, y_val)
     params['n_estimators'] = base_estimators
     # Train to retrieve best iteration
     print('Validating...')
-    model = pgbm.PGBM(params)
+    model = PGBM()
     start = time.perf_counter()    
-    model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data)
+    model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
     torch.cuda.synchronize()
     end = time.perf_counter()
     validation_time = end - start
@@ -105,15 +103,15 @@ for i, dataset in enumerate(datasets):
     params['n_estimators'] = model.best_iteration + 1
     # Retrain on full set   
     print('Training...')
-    model = pgbm.PGBM(params)
-    model.train(train_data, objective=objective, metric=rmseloss_metric)
+    model = PGBM()
+    model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
     #% Predictions
     print('Prediction...')
-    yhat_point_pgbm = model.predict(test_data[0])   
+    yhat_point_pgbm = model.predict(X_test)   
     model.params['tree_correlation'] = tree_correlations[np.argmin(crps_pgbm)]
-    yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=n_samples)
+    yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
     # Scoring
-    rmse_pgbm_new = rmseloss_metric(yhat_point_pgbm.cpu(), test_data[1]).numpy()
+    rmse_pgbm_new = rmseloss_metric(yhat_point_pgbm.cpu(), y_test).numpy()
     crps_pgbm_new = ps.crps_ensemble(y_test, yhat_dist_pgbm.cpu().T).mean()
     # Save data
     df_test = df_test.append({'method':method, 'dataset':dataset, 'fold':0, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse_pgbm_new, 'crps_test': crps_pgbm_new, 'validation_time':validation_time, 'rho':model.params['tree_correlation']}, ignore_index=True)

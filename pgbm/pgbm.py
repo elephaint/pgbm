@@ -23,27 +23,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.parallel as parallel
 import numpy as np
+import pandas as pd
 from torch.autograd import grad
 from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, LogNormal, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
 from torch.utils.cpp_extension import load
 parallelsum_kernel = load(name='parallelsum', sources=['pgbm/cuda/parallelsum.cpp', 'pgbm/cuda/parallelsum_kernel.cu'])
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(nn.Module):
-    def __init__(self, params=None):
+    def __init__(self):
         super(PGBM, self).__init__()
-        # Load params
-        if params is None:
-            params = {}
-        self.params = self._init_params(params)                      
-        
-        # Set some additional params
-        self.params['max_nodes'] = self.params['max_leaves'] - 1
-        torch.manual_seed(self.params['seed'])
-        self.epsilon = 1e-6
     
-    def _init_params(self, params):
-        # self.params = {}
-        params_new = {}
+    def _init_params(self, params):       
+        self.params = {}
         param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
                        'seed', 'device', 'output_device', 'gpu_device_ids', 'derivatives', 'distribution']
@@ -66,12 +57,15 @@ class PGBM(nn.Module):
             self.output_device = torch.device('cpu')
                    
         for i, param in enumerate(param_names):
-            params_new[param] = params[param] if param in params else param_defaults[i]
+            self.params[param] = params[param] if param in params else param_defaults[i]
             if i < 5:
-                params_new[param] = torch.tensor(params_new[param], device=self.output_device, dtype=torch.float32)
-        
-        return params_new
-        
+                self.params[param] = torch.tensor(self.params[param], device=self.output_device, dtype=torch.float32)
+                
+        # Set some additional params
+        self.params['max_nodes'] = self.params['max_leaves'] - 1
+        torch.manual_seed(self.params['seed'])
+        self.epsilon = 1e-6
+
     def _create_feature_bins(self, X):
         # Create array that contains the bins
         max_bin = self.params['max_bin']
@@ -135,6 +129,7 @@ class PGBM(nn.Module):
         self.node_idx = 0
         node = 1
         n_features = X.shape[0]
+        n_samples = X.shape[1]
         sample_features = torch.randperm(n_features, device=X.device, dtype=torch.int64)[:self.feature_fraction]
         Xe = X[sample_features]
         # Create tree
@@ -174,6 +169,7 @@ class PGBM(nn.Module):
                         self.nodes_split_feature[estimator, self.node_idx] = sample_features[split_feature_sample] 
                         self.nodes_split_bin[estimator, self.node_idx] = split_bin
                         self.node_idx += 1
+                        self.feature_importance[sample_features[split_feature_sample]] += split_gain * X_node.shape[1] / n_samples 
                         # Assign next node to samples if next node does not exceed max n_leaves
                         criterion = 2 * (self.params['max_nodes'] - self.node_idx + 1)
                         n_leaves_old = self.leaf_idx
@@ -274,15 +270,30 @@ class PGBM(nn.Module):
         
         return X_splits
     
-    def train(self, train_set, objective, metric, valid_set=None, levels=None):
-        # Create train data, send to device
-        X_train, y_train = train_set
-        X_train, y_train = X_train.to(self.output_device), y_train.to(self.output_device)
+    def _convert_array(self, array):
+        if type(array) == np.ndarray:
+            array = torch.from_numpy(array).float()
+        elif type(array) == pd.core.frame.DataFrame:
+            array = torch.from_numpy(array.values).float()
+        elif type(array) == torch.Tensor:
+            array = array.float()
+        
+        return array.to(self.output_device)
+    
+    def train(self, train_set, objective, metric, params=None, valid_set=None, levels=None):
+        # Create parameters
+        if params is None:
+            params = {}
+        self._init_params(params)
+        # Create train data
+        X_train, y_train = self._convert_array(train_set[0]), self._convert_array(train_set[1]).squeeze()
+        # Set objective & metric
         if self.params['derivatives'] == 'exact':
             self.objective = objective
         else:
             self.loss = objective
             self.objective = self._objective_approx
+        self.metric = metric
         # Initialize predictions
         self.n_features = X_train.shape[1]
         self.n_samples = X_train.shape[0]
@@ -301,24 +312,22 @@ class PGBM(nn.Module):
         self.leaves_idx = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.int64, device = self.output_device)
         self.leaves_mu = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.float32, device = self.output_device)
         self.leaves_var = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.float32, device = self.output_device)
+        self.feature_importance = torch.zeros(self.n_features, dtype=torch.float32, device=self.output_device)
         self.dist = False
         self.n_samples_dist = 1
         self.best_iteration = 0
         # Pre-compute split decisions for X_train
         X_train_splits = self._create_X_splits(X_train)
-        del X_train
         # Initialize validation
         validate = False
         if valid_set is not None:
             validate = True
             early_stopping = 0
-            X_validate, y_validate = valid_set
-            X_validate, y_validate = X_validate.to(self.output_device), y_validate.to(self.output_device)
+            X_validate, y_validate = self._convert_array(valid_set[0]), self._convert_array(valid_set[1]).squeeze()
             yhat_validate = self.yhat_0.repeat(y_validate.shape[0])
             self.best_score = torch.tensor(float('inf'), device = self.output_device, dtype=torch.float32)
             # Pre-compute split decisions for X_validate
             X_validate_splits = self._create_X_splits(X_validate)
-            del X_validate
 
         # Retrieve initial loss and gradient
         if levels is not None:
@@ -363,7 +372,7 @@ class PGBM(nn.Module):
                 self.best_score = 0
                        
     def predict(self, X):
-        X = X.to(self.output_device)
+        X = self._convert_array(X)
         self.dist = False
         self.n_samples_dist = 1
         yhat0 = self.yhat_0.repeat(X.shape[0])
@@ -378,9 +387,9 @@ class PGBM(nn.Module):
             mu, variance = self._predict_tree(X_test_splits, mu, variance, estimator)
 
         return yhat0 + mu
-    
+       
     def predict_dist(self, X, n_samples):
-        X = X.to(self.output_device)
+        X = self._convert_array(X)
         self.dist = True
         self.n_samples_dist = n_samples
         yhat0 = self.yhat_0.repeat(X.shape[0])
@@ -486,6 +495,35 @@ class PGBM(nn.Module):
         
         return yhat
     
+    # Calculates the empirical CRPS for a set of forecasts for a number of samples
+    def crps_ensemble(self, yhat_dist, y):
+        y = self._convert_array(y)
+        yhat_dist = self._convert_array(yhat_dist)
+        n_forecasts = yhat_dist.shape[0]
+        # Sort the forecasts in ascending order
+        yhat_dist_sorted, _ = torch.sort(yhat_dist, 0)
+        # Create temporary tensors
+        y_cdf = torch.zeros_like(y)
+        yhat_cdf = torch.zeros_like(y)
+        yhat_prev = torch.zeros_like(y)
+        crps = torch.zeros_like(y)
+        # Loop over the samples generated per observation
+        for yhat in yhat_dist_sorted:
+            flag = (y_cdf == 0) * (y < yhat)
+            crps += flag * ((y - yhat_prev) * yhat_cdf ** 2)
+            crps += flag * ((yhat - y) * (yhat_cdf - 1) ** 2)
+            y_cdf += flag
+            crps += ~flag * ((yhat - yhat_prev) * (yhat_cdf - y_cdf) ** 2)
+            yhat_cdf += 1 / n_forecasts
+            yhat_prev = yhat
+        
+        # In case y_cdf == 0 after the loop
+        flag = (y_cdf == 0)
+        crps += flag * (y - yhat)
+        
+        return crps       
+
+# Create split decision in module for parallelization                
 class _split_decision(nn.Module):
     def __init__(self, max_bin):
         super(_split_decision, self).__init__()
@@ -494,33 +532,4 @@ class _split_decision(nn.Module):
     def forward(self, X, gradient, hessian):
         Gl, Hl = parallelsum_kernel.split_decision(X.T, gradient, hessian, self.max_bin)
         
-        return Gl.unsqueeze(0), Hl.unsqueeze(0)
-
-# Calculates the empirical CRPS for a set of forecasts for a number of samples
-def crps_ensemble(y, yhat_dist):
-    n_forecasts = yhat_dist.shape[0]
-    # Sort the forecasts in ascending order
-    yhat_dist_sorted, _ = torch.sort(yhat_dist, 0)
-    # Create temporary tensors
-    y_cdf = torch.zeros_like(y)
-    yhat_cdf = torch.zeros_like(y)
-    yhat_prev = torch.zeros_like(y)
-    crps = torch.zeros_like(y)
-    # Loop over the samples generated per observation
-    for yhat in yhat_dist_sorted:
-        flag = (y_cdf == 0) * (y < yhat)
-        crps += flag * ((y - yhat_prev) * yhat_cdf ** 2)
-        crps += flag * ((yhat - y) * (yhat_cdf - 1) ** 2)
-        y_cdf += flag
-        crps += ~flag * ((yhat - yhat_prev) * (yhat_cdf - y_cdf) ** 2)
-        yhat_cdf += 1 / n_forecasts
-        yhat_prev = yhat
-    
-    # In case y_cdf == 0 after the loop
-    flag = (y_cdf == 0)
-    crps += flag * (y - yhat)
-    
-    return crps
-    
-    
-    
+        return Gl.unsqueeze(0), Hl.unsqueeze(0)       
