@@ -8,10 +8,10 @@ Probabilistic Gradient Boosting Machines (PGBM) is a probabilistic gradient boos
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link).
 
 ### Installation ###
-Run `pip install pgbm` within the virtual environment of your choice.
+Run `pip install pgbm` from a terminal within the virtual environment of your choice.
 
 #### Verification ####
-* Download & run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
+* Download & run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both `gpu` and `cpu` as device to check if you are able to train on both GPU and CPU.
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 
 #### Dependencies ####
