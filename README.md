@@ -8,14 +8,13 @@ Probabilistic Gradient Boosting Machines (PGBM) is a probabilistic gradient boos
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link).
 
 ### Installation ###
-* Clone the repository
-* Go to {your_installation_directory}/pgbm
+* Run `pip install pgbm` within the virtual environment of your choice.
 * Run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
-* The first time it may take a bit longer to import pgbm as it relies on JIT compilation for the custom CUDA kernel. 
+* Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer to compile the CUDA kernel. After that, the compiled kernel is saved to a cache folder in your local virtual environment. 
 
 #### Dependencies ####
 
-* PyTorch >= 1.7.0 with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/)
+* PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/)
 * Numpy >= 1.19.2 (install via `pip` or `conda`; https://github.com/numpy/numpy)
 * PGBM uses a custom CUDA kernel which needs to be compiled; this may require installing a suitable compiler (e.g. gcc) although installing PyTorch according to the official docs should install all the required dependencies.
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
@@ -25,7 +24,7 @@ See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder 
 
 Below is an example of a probabilistic regression task: predict housing prices for the [Boston Housing dataset](https://archive.ics.uci.edu/ml/machine-learning-databases/housing/). The code for this example can be found [here](https://github.com/elephaint/pgbm/blob/main/examples/example1_bostonhousing.py).
 
-First, we import the necessary packages. Note that the first time this can take longer due to the JIT-compilation of the CUDA-kernel. However, in this simple example we will train on the CPU.
+First, we import the necessary packages. In this simple example we will train on the CPU.
 ```
 import torch
 from pgbm import PGBM
@@ -105,5 +104,5 @@ We intend to have the package as lightweight as possible.
 - [x] ~~Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)~~
 - [x] ~~Set default values for learning parameters.~~
 - [x] ~~Support feature explainer~~
-- [ ] Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`.
+- [x] ~~Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`.~~
 - [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).

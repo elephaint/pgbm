@@ -18,6 +18,7 @@
    Olivier Sprangers, Sebastian Schelter, Maarten de Rijke. Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression (https://linktopaper). Accepted for publication at SIGKDD '21.
 
 """
+#%% Import packages
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,7 +28,7 @@ import pandas as pd
 from torch.autograd import grad
 from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, LogNormal, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
 from torch.utils.cpp_extension import load
-parallelsum_kernel = load(name='parallelsum', sources=['pgbm/cuda/parallelsum.cpp', 'pgbm/cuda/parallelsum_kernel.cu'])
+from pathlib import Path
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(nn.Module):
     def __init__(self):
@@ -43,9 +44,11 @@ class PGBM(nn.Module):
         # Create gpu functions for split decision
         if 'device' in params:
             if params['device'] == 'gpu':
+                current_path = Path(__file__).parent.absolute()
+                parallelsum_kernel = load(name='parallelsum', sources=[f'{current_path}/parallelsum.cpp', f'{current_path}/parallelsum_kernel.cu'])
                 self.device_ids = params['gpu_device_ids'] if 'gpu_device_ids' in params else (0,)
                 max_bin = params['max_bin'] if 'max_bin' in params else 256
-                self.parallel_split_decision = parallel.replicate(_split_decision(max_bin), self.device_ids)
+                self.parallel_split_decision = parallel.replicate(_split_decision(max_bin, parallelsum_kernel), self.device_ids)
                 if params['output_device'] == 'gpu':
                     output_id = params['gpu_device_ids'][0]
                     self.output_device = params['gpu_device_ids'][output_id]
@@ -132,6 +135,7 @@ class PGBM(nn.Module):
         n_samples = X.shape[1]
         sample_features = torch.randperm(n_features, device=X.device, dtype=torch.int64)[:self.feature_fraction]
         Xe = X[sample_features]
+        drange = torch.arange(self.params['max_bin']);
         # Create tree
         while (self.leaf_idx < self.params['max_leaves']):
             split_node = self.train_nodes == node
@@ -148,7 +152,10 @@ class PGBM(nn.Module):
                     Gl, Hl = parallel.gather(outputs, self.device_ids[0])
                     Gl, Hl = Gl.sum(0).to(self.output_device), Hl.sum(0).to(self.output_device)
                 else:
-                    Gl, Hl = parallelsum_kernel.split_decision(X_node, gradient_node, hessian_node, self.params['max_bin'])
+                    # Gl, Hl = parallelsum_kernel.split_decision(X_node, gradient_node, hessian_node, self.params['max_bin'])
+                    left_idx = torch.gt(X_node.unsqueeze(-1), drange).float();
+                    Gl = torch.einsum("i, jik -> jk", gradient_node, left_idx);
+                    Hl = torch.einsum("i, jik -> jk", hessian_node, left_idx);
                 # Comput split_gain
                 G = gradient_node.sum()
                 H = hessian_node.sum()
@@ -525,11 +532,12 @@ class PGBM(nn.Module):
 
 # Create split decision in module for parallelization                
 class _split_decision(nn.Module):
-    def __init__(self, max_bin):
+    def __init__(self, max_bin, parallelsum_kernel):
         super(_split_decision, self).__init__()
         self.max_bin = max_bin
+        self.parallelsum_kernel = parallelsum_kernel
     
     def forward(self, X, gradient, hessian):
-        Gl, Hl = parallelsum_kernel.split_decision(X.T, gradient, hessian, self.max_bin)
+        Gl, Hl = self.parallelsum_kernel.split_decision(X.T, gradient, hessian, self.max_bin)
         
         return Gl.unsqueeze(0), Hl.unsqueeze(0)       
