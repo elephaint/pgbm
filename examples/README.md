@@ -7,6 +7,9 @@ This folder contains examples of PGBM. The examples illustrate the following:
 * Example 7: How the choice of output distribution can be optimized after training.
 * Example 8: How to use autodifferentiation for loss functions where no analytical gradient or hessian is provided.
 * Example 9: How to plot the feature importance of a learner after training.
+* Example 10-11: How we employed PGBM to forecast Covid-19 daily hospital admissions in the Netherlands.
+
+Note: to use the `higgs` dataset in any of the examples, download [here](https://archive.ics.uci.edu/ml/datasets/HIGGS), unpack and save `HIGGS.csv` to your local working directory.
 
 # Hyperparameters #
 PGBM employs the following set of hyperparameters (listed in alphabetical order):
@@ -30,7 +33,13 @@ PGBM employs the following set of hyperparameters (listed in alphabetical order)
 * `verbose`, default=`2`. Flag to output metric results for each iteration. Set to `1` to supress output.
 
 # Function reference #
+PGBM is a lightweight package. The following functions will be needed the most:
+* `train(train_set, objective, metric, params=None, valid_set=None, levels=None)`. Train a PGBM model for a given objective and evaluate on a given metric. If no `valid_set` is provided, the learner will train `n_estimators` as set in the `params` dict. For examples of what the objective and metric should look like, see the examples above. For `levels`, please see the Covid-19 example.
+* `predict(X)`. Obtain point predictions for a sample set `X`.
+* `predict_dist(X, n_samples)`. Obtain `n_samples` probabilistic predictions for a sample set `X`. 
+* `crps_ensemble(yhat_dist, y)`. Calculate the CRPS score for a set of probabilistic predictions `yhat_dist` and ground truth `y`.
 
+For inspecting the feature importance of a PGBM model, use the attribute `.feature_importance`. The feature importance is based on the weighted split gain.
 
 # GPU training #
 For training on GPU, it is required to set the following hyperparameters:

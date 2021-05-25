@@ -36,7 +36,7 @@ def rmseloss_metric(yhat, y):
     return loss
 #%% Load data
 #datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
-dataset = 'higgs' # Download higgs.csv to folder datasets first - see link in 'NOTICE'
+dataset = 'naval'
 data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, random_state=0)
 X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
@@ -54,7 +54,7 @@ params = {'min_split_gain':0,
       'seed':1,
       'lambda':1,
       'tree_correlation':0.03,
-      'device':'gpu',
+      'device':'cpu',
       'output_device':'gpu',
       'gpu_device_ids':(0,),
       'derivatives':'exact',

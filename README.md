@@ -10,7 +10,7 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 ### Installation ###
 Run `pip install pgbm` within the virtual environment of your choice.
 
-Verification:
+#### Verification ####
 * Download & run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both 'gpu' and 'cpu' as device to check if you are able to train on both GPU and CPU.
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 
@@ -87,7 +87,7 @@ which will give us the point forecast and probabilistic forecast:
 ![Boston Housing probabilistic forecast](/examples/example1_figure.png)
 
 ### Support ###
-See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) for an overview of hyperparameters and a function reference. Questions, remarks, found errors: [email the author](mailto:o.r.sprangers@uva.nl)
+See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) for an overview of hyperparameters and a function reference. [Email the author](mailto:o.r.sprangers@uva.nl) for further support.
 
 ### Reference ###
 [Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).

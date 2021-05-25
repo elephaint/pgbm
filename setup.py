@@ -19,4 +19,5 @@ setuptools.setup(
          "Programming Language :: Python :: 3",
          "License :: OSI Approved :: Apache 2.0",
          "Operating System :: OS Independent"],
-    python_requires='>=3.8')
+    python_requires='>=3.8',
+    zip_safe=False)
