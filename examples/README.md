@@ -34,7 +34,7 @@ PGBM employs the following set of hyperparameters (listed in alphabetical order)
 
 # Function reference #
 PGBM is a lightweight package. The following functions will be needed the most:
-* `train(train_set, objective, metric, params=None, valid_set=None, levels=None)`. Train a PGBM model for a given objective and evaluate on a given metric. If no `valid_set` is provided, the learner will train `n_estimators` as set in the `params` dict. For examples of what the objective and metric should look like, see the examples above. For `levels`, please see the Covid-19 example.
+* `train(train_set, objective, metric, params=None, valid_set=None, levels=None)`. Train a PGBM model for a given objective and evaluate on a given metric. If no `valid_set` is provided, the learner will train `n_estimators` as set in the `params` dict. For examples of what the objective and metric should look like, see the examples above. For an example of how the `levels` parameter can be used to construct hierarchical forecasts, please see the [hierarchical time series example](https://github.com/elephaint/pgbm/tree/main/paper/experiments/02_hierarchical_time_series) from our paper.
 * `predict(X)`. Obtain point predictions for a sample set `X`.
 * `predict_dist(X, n_samples)`. Obtain `n_samples` probabilistic predictions for a sample set `X`. 
 * `crps_ensemble(yhat_dist, y)`. Calculate the CRPS score for a set of probabilistic predictions `yhat_dist` and ground truth `y`.

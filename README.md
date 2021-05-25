@@ -84,7 +84,7 @@ plt.plot(yhat_dist_pgbm.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
 plt.legend()
 ```
 which will give us the point forecast and probabilistic forecast:
-![Boston Housing probabilistic forecast](/examples/example1_figure.png)
+![Boston Housing probabilistic forecast](/examples/example01_figure.png)
 
 ### Support ###
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) for an overview of hyperparameters and a function reference. [Email the author](mailto:o.r.sprangers@uva.nl) for further support.
