@@ -21,14 +21,14 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
 
 ### Examples ###
-See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
+See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
 
 Below is an example of a probabilistic regression task: predict housing prices for the [Boston Housing dataset](https://archive.ics.uci.edu/ml/machine-learning-databases/housing/). The code for this example can be found [here](https://github.com/elephaint/pgbm/blob/main/examples/example1_bostonhousing.py).
 
 First, we import the necessary packages. Note that the first time this can take longer due to the JIT-compilation of the CUDA-kernel. However, in this simple example we will train on the CPU.
 ```
 import torch
-import pgbm
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
@@ -84,20 +84,19 @@ plt.legend()
 which will give us the point forecast and probabilistic forecast:
 ![Boston Housing probabilistic forecast](/examples/example1_figure.png)
 
-### Hyperparameters ###
-See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for an overview of the hyperparameters of PGBM.
-
-### Experiments ###
-The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder (Higgs) and datasets/m5 (m5).
+### Support ###
+See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) for an overview of hyperparameters and a function reference. Questions, remarks, found errors: [email the author](mailto:o.r.sprangers@uva.nl)
 
 ### Reference ###
 [Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).
+
+The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/datasets) folder (Higgs) and datasets/m5 (m5).
 
 ### License ###
 This project is licensed under the terms of the [Apache 2.0 license](https://github.com/elephaint/pgbm/blob/main/LICENSE).
 
 ### Acknowledgements ###
-This project was developed by Airlab Amsterdam.
+This project was developed by [Airlab Amsterdam](https://icai.ai/airlab/).
 
 ### ToDo ###
 We intend to have the package as lightweight as possible.
@@ -105,6 +104,6 @@ We intend to have the package as lightweight as possible.
 - [x] ~~Add extreme value distributions such as Gumbel and Weibull to distribution choices.~~
 - [x] ~~Remove properscoring dependency (crps_ensemble can be calculated much faster on GPU)~~
 - [x] ~~Set default values for learning parameters.~~
-- [ ] Support feature explainer
-- [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).
+- [x] ~~Support feature explainer~~
 - [ ] Remove JIT-compilation dependency and offer as an installable package via `pip` or `conda`.
+- [ ] Full support of Torch distributed (across multiple GPUs and nodes, now only across multiple GPUs supported).
