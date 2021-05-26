@@ -29,6 +29,7 @@ from torch.autograd import grad
 from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, LogNormal, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
 from torch.utils.cpp_extension import load
 from pathlib import Path
+import pickle
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(nn.Module):
     def __init__(self):
@@ -529,7 +530,40 @@ class PGBM(nn.Module):
         crps += flag * (y - yhat)
         
         return crps       
-
+    
+    def save(self, filename):
+        state_dict = {'nodes_idx': self.nodes_idx,
+                      'nodes_split_feature':self.nodes_split_feature,
+                      'nodes_split_bin':self.nodes_split_bin,
+                      'leaves_idx':self.leaves_idx,
+                      'leaves_mu':self.leaves_mu,
+                      'leaves_var':self.leaves_var,
+                      'feature_importance':self.feature_importance,
+                      'best_iteration':self.best_iteration,
+                      'params':self.params,
+                      'yhat0':self.yhat_0,
+                      'bins':self.bins}
+        
+        with open(filename, 'wb') as handle:
+            pickle.dump(state_dict, handle)   
+    
+    def load(self, filename, device):
+        with open(filename, 'rb') as handle:
+            state_dict = pickle.load(handle)
+        
+        self.nodes_idx = state_dict['nodes_idx']
+        self.nodes_split_feature  = state_dict['nodes_split_feature']
+        self.nodes_split_bin  = state_dict['nodes_split_bin']
+        self.leaves_idx  = state_dict['leaves_idx']
+        self.leaves_mu  = state_dict['leaves_mu']
+        self.leaves_var  = state_dict['leaves_var']
+        self.feature_importance  = state_dict['feature_importance']
+        self.best_iteration  = state_dict['best_iteration']
+        self.params  = state_dict['params']
+        self.yhat_0  = state_dict['yhat0']
+        self.bins = state_dict['bins']
+        self.output_device = device
+        
 # Create split decision in module for parallelization                
 class _split_decision(nn.Module):
     def __init__(self, max_bin, parallelsum_kernel):

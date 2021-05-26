@@ -26,6 +26,16 @@ import matplotlib.pyplot as plt
 #%% Load data
 # Cases
 df = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_ziekenhuisopnames.csv', sep=';', parse_dates=[0], usecols=[2, 3, 4, 5, 6, 8])
+# Proportional allocation of NaNs per municipality per date
+total_by_date = df.groupby(['Date_of_statistics'])['Hospital_admission'].sum()
+total_by_date_without_nan = df.groupby(['Date_of_statistics','Municipality_code'])['Hospital_admission'].sum().groupby(['Date_of_statistics']).sum()
+df_totals = pd.concat((total_by_date, total_by_date_without_nan), axis=1)
+df_totals.columns = ['Hospital_admission_total_correct', 'Hospital_admission_total_partial']
+df_totals['Delta_hospital_admissions'] = df_totals['Hospital_admission_total_correct'] - df_totals['Hospital_admission_total_partial']
+df_totals = df_totals.reset_index()
+df = df.merge(df_totals, how='left')
+df['Hospital_admission'] = df['Hospital_admission'] + (df['Hospital_admission'] / df['Hospital_admission_total_partial']) * df['Delta_hospital_admissions']
+df = df.drop(columns = ['Hospital_admission_total_correct', 'Hospital_admission_total_partial','Delta_hospital_admissions'])
 df = df.groupby(['Municipality_name', 'Security_region_name','Municipality_code','Security_region_code','Date_of_statistics']).sum()
 df = df.reset_index()
 # Remove last date, data for those days seems incomplete
@@ -37,7 +47,9 @@ df_tests = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_uitgevoerde_teste
 df_tests['positivity_rate'] =  df_tests['Tested_positive'] / df_tests['Tested_with_result']
 df = df.merge(df_tests, how='left', left_on=['Security_region_code', 'Date_of_statistics'], right_on=['Security_region_code', 'Date_of_statistics'])
 #%% Merge ROAZ region
-df_cases = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_aantallen_gemeente_per_dag.csv', sep=';', usecols=[2, 8]).drop_duplicates()
+df_cases = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_aantallen_gemeente_per_dag.csv', sep=';', usecols=[2, 8]).drop_duplicates().dropna()
+index_to_drop = df_cases[(df_cases.Municipality_code == 'GM0363') & (df_cases.ROAZ_region == 'Netwerk Acute Zorg Noordwest')].index
+df_cases = df_cases.drop(index_to_drop)
 df = df.merge(df_cases, how='left', left_on=['Municipality_code'], right_on=['Municipality_code'])
 #%% Label encoding
 from sklearn.preprocessing import LabelEncoder

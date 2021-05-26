@@ -8,6 +8,7 @@ This folder contains examples of PGBM. The examples illustrate the following:
 * Example 8: How to use autodifferentiation for loss functions where no analytical gradient or hessian is provided.
 * Example 9: How to plot the feature importance of a learner after training.
 * Example 10: How we employed PGBM to forecast Covid-19 daily hospital admissions in the Netherlands.
+* Example 11: How to save and load a PGBM model.
 
 Note: to use the `higgs` dataset in any of the examples, download [here](https://archive.ics.uci.edu/ml/datasets/HIGGS), unpack and save `HIGGS.csv` to your local working directory.
 
@@ -38,6 +39,8 @@ PGBM is a lightweight package. The following functions will be needed the most:
 * `predict(X)`. Obtain point predictions for a sample set `X`.
 * `predict_dist(X, n_samples)`. Obtain `n_samples` probabilistic predictions for a sample set `X`. 
 * `crps_ensemble(yhat_dist, y)`. Calculate the CRPS score for a set of probabilistic predictions `yhat_dist` and ground truth `y`.
+* `save(filename)`. Save the state dict of a trained model to a file.
+* `load(filename, device)`. Load a model dictionary from a file to a device. The device should be a `torch.device`. 
 
 For inspecting the feature importance of a PGBM model, use the attribute `.feature_importance`. The feature importance is based on the weighted split gain.
 
