@@ -24,13 +24,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
 #%% Objective for pgbm
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
@@ -52,6 +52,20 @@ crps = model.crps_ensemble(yhat_dist, y_test).mean()
 # Print final scores
 print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Plot feature importance
+#%% Feature importance from split gain on training set
 feature_names = load_boston()['feature_names']
-plt.barh(feature_names, model.feature_importance)
+val_fi, idx_fi = torch.sort(model.feature_importance.cpu())
+#%% Feature importance from permutation importance on test set. This can be slow to calculate!
+permutation_importance = model.permutation_importance(X_test, y_test)
+mean_permutation_importance = permutation_importance.mean(1)
+_, idx_pi = torch.sort(mean_permutation_importance)
+#%% Plot both
+fig, ax = plt.subplots(1, 2)
+ax[0].barh(feature_names[idx_fi], val_fi)
+ax[0].set_title('Feature importance by cumulative split gain on training set')
+ax[0].set(xlabel = 'Cumulative split gain', ylabel='Feature')
+ax[1].set_title('Feature importance by feature permutation on test set')
+ax[1].boxplot(permutation_importance[idx_pi], labels=feature_names[idx_pi], vert=False)
+ax[1].set(xlabel = '% change in error metric', ylabel='Feature')
+fig.tight_layout()
+plt.show()

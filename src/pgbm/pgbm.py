@@ -48,13 +48,17 @@ class PGBM(nn.Module):
                 current_path = Path(__file__).parent.absolute()
                 parallelsum_kernel = load(name='parallelsum', sources=[f'{current_path}/parallelsum.cpp', f'{current_path}/parallelsum_kernel.cu'])
                 self.device_ids = params['gpu_device_ids'] if 'gpu_device_ids' in params else (0,)
+                params['gpu_device_ids'] = self.device_ids
                 max_bin = params['max_bin'] if 'max_bin' in params else 256
                 self.parallel_split_decision = parallel.replicate(_split_decision(max_bin, parallelsum_kernel), self.device_ids)
-                if params['output_device'] == 'gpu':
-                    output_id = params['gpu_device_ids'][0]
-                    self.output_device = torch.device(output_id)
+                if 'output_device' in params:
+                    if params['output_device'] == 'gpu':
+                        output_id = params['gpu_device_ids'][0]
+                        self.output_device = torch.device(output_id)
+                    else:
+                        self.output_device = torch.device('cpu')
                 else:
-                    self.output_device = torch.device('cpu')
+                    self.output_device = torch.device(0)
             else:
                 self.output_device = torch.device('cpu')
         else: 
@@ -62,7 +66,7 @@ class PGBM(nn.Module):
                    
         for i, param in enumerate(param_names):
             self.params[param] = params[param] if param in params else param_defaults[i]
-            if i < 5:
+            if param in ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation']:
                 self.params[param] = torch.tensor(self.params[param], device=self.output_device, dtype=torch.float32)
                 
         # Set some additional params
@@ -89,14 +93,9 @@ class PGBM(nn.Module):
         yhat.requires_grad = True
         yhat_upper = yhat + self.epsilon
         yhat_lower = yhat - self.epsilon
-        if levels is not None:
-            loss = self.loss(yhat, y, levels)
-            loss_upper = self.loss(yhat_upper, y, levels)
-            loss_lower = self.loss(yhat_lower, y, levels)
-        else: 
-            loss = self.loss(yhat, y)
-            loss_upper = self.loss(yhat_upper, y)
-            loss_lower = self.loss(yhat_lower, y)            
+        loss = self.loss(yhat, y, levels)
+        loss_upper = self.loss(yhat_upper, y, levels)
+        loss_lower = self.loss(yhat_lower, y, levels)           
         gradient = grad(loss, yhat)[0]
         gradient_upper = grad(loss_upper, yhat_upper)[0]
         gradient_lower = grad(loss_lower, yhat_lower)[0]
@@ -281,14 +280,14 @@ class PGBM(nn.Module):
     def _convert_array(self, array):
         if type(array) == np.ndarray:
             array = torch.from_numpy(array).float()
-        elif type(array) == pd.core.frame.DataFrame:
+        elif type(array) == pd.core.frame.DataFrame or type(array) == pd.core.series.Series:
             array = torch.from_numpy(array.values).float()
         elif type(array) == torch.Tensor:
             array = array.float()
         
         return array.to(self.output_device)
     
-    def train(self, train_set, objective, metric, params=None, valid_set=None, levels=None):
+    def train(self, train_set, objective, metric, params=None, valid_set=None, levels_train=None, levels_valid=None):
         # Create parameters
         if params is None:
             params = {}
@@ -338,10 +337,7 @@ class PGBM(nn.Module):
             X_validate_splits = self._create_X_splits(X_validate)
 
         # Retrieve initial loss and gradient
-        if levels is not None:
-            gradient, hessian = self.objective(yhat_train, y_train, levels)      
-        else:
-            gradient, hessian = self.objective(yhat_train, y_train)
+        gradient, hessian = self.objective(yhat_train, y_train, levels_train)      
         # Loop over estimators
         for estimator in range(self.params['n_estimators']):
             # Retrieve bagging batch
@@ -351,18 +347,15 @@ class PGBM(nn.Module):
             # Get predictions for all samples
             yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator)
             # Compute new gradient and hessian
-            if levels is not None:
-                gradient, hessian = self.objective(yhat_train, y_train, levels)
-            else:
-                gradient, hessian = self.objective(yhat_train, y_train)
+            gradient, hessian = self.objective(yhat_train, y_train, levels_train)
             # Compute metric
-            train_metric = metric(yhat_train, y_train)
+            train_metric = metric(yhat_train, y_train, levels_train)
             # Reset train nodes
             self.train_nodes.fill_(1)
             # Validation statistics
             if validate:
                 yhat_validate, _ =  self._predict_tree(X_validate_splits, yhat_validate, yhat_validate*0., estimator) 
-                validation_metric = metric(yhat_validate, y_validate)
+                validation_metric = metric(yhat_validate, y_validate, levels_valid)
                 if (self.params['verbose'] > 1):
                     print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
                 if validation_metric < self.best_score:
@@ -440,6 +433,7 @@ class PGBM(nn.Module):
             yhat = LogNormal(loc, scale.sqrt()).rsample([n_samples])
         elif self.params['distribution'] == 'gamma':
             variance = torch.nan_to_num(variance, 1e-9)
+            mu = torch.nan_to_num(mu, 1e-9)
             rate = (mu.clamp(1e-9) / variance.clamp(1e-9))
             shape = mu.clamp(1e-9) * rate
             yhat = Gamma(shape, rate).rsample([n_samples])
@@ -532,17 +526,24 @@ class PGBM(nn.Module):
         return crps       
     
     def save(self, filename):
-        state_dict = {'nodes_idx': self.nodes_idx,
-                      'nodes_split_feature':self.nodes_split_feature,
-                      'nodes_split_bin':self.nodes_split_bin,
-                      'leaves_idx':self.leaves_idx,
-                      'leaves_mu':self.leaves_mu,
-                      'leaves_var':self.leaves_var,
-                      'feature_importance':self.feature_importance,
+        params = self.params.copy()
+        params['learning_rate'] = params['learning_rate'].cpu()
+        params['tree_correlation'] = params['tree_correlation'].cpu()
+        params['lambda'] = params['lambda'].cpu()
+        params['min_split_gain'] = params['min_split_gain'].cpu()
+        params['min_data_in_leaf'] = params['min_data_in_leaf'].cpu()
+
+        state_dict = {'nodes_idx': self.nodes_idx.cpu(),
+                      'nodes_split_feature':self.nodes_split_feature.cpu(),
+                      'nodes_split_bin':self.nodes_split_bin.cpu(),
+                      'leaves_idx':self.leaves_idx.cpu(),
+                      'leaves_mu':self.leaves_mu.cpu(),
+                      'leaves_var':self.leaves_var.cpu(),
+                      'feature_importance':self.feature_importance.cpu(),
                       'best_iteration':self.best_iteration,
-                      'params':self.params,
-                      'yhat0':self.yhat_0,
-                      'bins':self.bins}
+                      'params':params,
+                      'yhat0':self.yhat_0.cpu(),
+                      'bins':self.bins.cpu()}
         
         with open(filename, 'wb') as handle:
             pickle.dump(state_dict, handle)   
@@ -551,18 +552,50 @@ class PGBM(nn.Module):
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
         
-        self.nodes_idx = state_dict['nodes_idx']
-        self.nodes_split_feature  = state_dict['nodes_split_feature']
-        self.nodes_split_bin  = state_dict['nodes_split_bin']
-        self.leaves_idx  = state_dict['leaves_idx']
-        self.leaves_mu  = state_dict['leaves_mu']
-        self.leaves_var  = state_dict['leaves_var']
-        self.feature_importance  = state_dict['feature_importance']
+        self.nodes_idx = state_dict['nodes_idx'].to(device)
+        self.nodes_split_feature  = state_dict['nodes_split_feature'].to(device)
+        self.nodes_split_bin  = state_dict['nodes_split_bin'].to(device)
+        self.leaves_idx  = state_dict['leaves_idx'].to(device)
+        self.leaves_mu  = state_dict['leaves_mu'].to(device)
+        self.leaves_var  = state_dict['leaves_var'].to(device)
+        self.feature_importance  = state_dict['feature_importance'].to(device)
         self.best_iteration  = state_dict['best_iteration']
         self.params  = state_dict['params']
-        self.yhat_0  = state_dict['yhat0']
-        self.bins = state_dict['bins']
+        self.params['learning_rate'] = self.params['learning_rate'].to(device)
+        self.params['tree_correlation'] = self.params['tree_correlation'].to(device)
+        self.params['lambda'] = self.params['lambda'].cpu()
+        self.params['min_split_gain'] = self.params['min_split_gain'].cpu()
+        self.params['min_data_in_leaf'] = self.params['min_data_in_leaf'].cpu()
+        self.yhat_0  = state_dict['yhat0'].to(device)
+        self.bins = state_dict['bins'].to(device)
         self.output_device = device
+        
+    def permutation_importance(self, X, y, n_permutations=10, levels=None):
+        X = self._convert_array(X)
+        y = self._convert_array(y)
+        n_samples = X.shape[0]
+        n_features = X.shape[1]
+        permutation_importance_metric = torch.zeros((n_features, n_permutations), device=X.device, dtype=X.dtype)
+        # Calculate base score
+        yhat_base = self.predict(X)
+        base_metric = self.metric(yhat_base, y, levels)
+        # Loop over permuted features
+        for feature in range(n_features):
+            X_permuted = torch.zeros((n_permutations, n_samples, n_features), device=X.device, dtype=X.dtype)
+            for permutation in range(n_permutations):
+                indices = torch.randperm(n_samples, device=X.device, dtype=torch.int64)
+                X_current = X.clone()
+                X_current[:, feature] = X_current[indices, feature]
+                X_permuted[permutation] = X_current
+            
+            X_permuted = X_permuted.reshape(n_permutations * n_samples, n_features)
+            yhat = self.predict(X_permuted)
+            yhat = yhat.reshape(n_permutations, n_samples)
+            for permutation in range(n_permutations):
+                permuted_metric = self.metric(yhat[permutation], y, levels)
+                permutation_importance_metric[feature, permutation] = ((permuted_metric / base_metric) - 1) * 100
+        
+        return permutation_importance_metric                   
         
 # Create split decision in module for parallelization                
 class _split_decision(nn.Module):

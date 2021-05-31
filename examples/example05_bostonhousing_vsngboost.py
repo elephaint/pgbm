@@ -26,13 +26,13 @@ import matplotlib.pyplot as plt
 import properscoring as ps
 from ngboost import NGBRegressor
 #%% Objective for pgbm
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss

@@ -24,13 +24,13 @@ from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 from datasets import get_dataset, get_fold
 #%% Objective for pgbm
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss

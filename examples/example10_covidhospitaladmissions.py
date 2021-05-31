@@ -23,9 +23,13 @@ import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 #%% Load data
 # Cases
-df = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_ziekenhuisopnames.csv', sep=';', parse_dates=[0], usecols=[2, 3, 4, 5, 6, 8])
+df = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_ziekenhuisopnames.csv', sep=';', parse_dates=[0], usecols=[2, 3, 4, 5, 6, 7])
+# Important - we treat the notification as the target variable!
+df = df.rename(columns={'Hospital_admission_notification':'Hospital_admission'})
 # Proportional allocation of NaNs per municipality per date
 total_by_date = df.groupby(['Date_of_statistics'])['Hospital_admission'].sum()
 total_by_date_without_nan = df.groupby(['Date_of_statistics','Municipality_code'])['Hospital_admission'].sum().groupby(['Date_of_statistics']).sum()
@@ -36,21 +40,63 @@ df_totals = df_totals.reset_index()
 df = df.merge(df_totals, how='left')
 df['Hospital_admission'] = df['Hospital_admission'] + (df['Hospital_admission'] / df['Hospital_admission_total_partial']) * df['Delta_hospital_admissions']
 df = df.drop(columns = ['Hospital_admission_total_correct', 'Hospital_admission_total_partial','Delta_hospital_admissions'])
+# Aggregate
 df = df.groupby(['Municipality_name', 'Security_region_name','Municipality_code','Security_region_code','Date_of_statistics']).sum()
 df = df.reset_index()
-# Remove last date, data for those days seems incomplete
-last_date = df['Date_of_statistics'].unique()[-1]
-df = df[df['Date_of_statistics'] < last_date]
-df = df.reset_index(drop=True)
 #%% Merge test data
 df_tests = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_uitgevoerde_testen.csv', sep=';', parse_dates=[0], usecols=[2,3,5,6])
 df_tests['positivity_rate'] =  df_tests['Tested_positive'] / df_tests['Tested_with_result']
+df_tests["positivity_rate"] = df_tests["positivity_rate"].fillna(0)
 df = df.merge(df_tests, how='left', left_on=['Security_region_code', 'Date_of_statistics'], right_on=['Security_region_code', 'Date_of_statistics'])
+#%% Merge vaccination rate
+df_gedrag = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_gedrag.csv', sep=';', parse_dates=[0, 1])
+# Extract vaccination rate per security region, forward filled
+df_gedrag = df_gedrag[df_gedrag['Indicator'] == 'Al_gevaccineerd']
+df_gedrag = df_gedrag[df_gedrag['Region_code'] != 'NL00']
+df_gedrag = df_gedrag[['Date_of_measurement', 'Region_code', 'Value']]
+df_gedrag = df_gedrag.groupby(['Date_of_measurement', 'Region_code']).mean()
+df_gedrag = df_gedrag.unstack(1)
+df_gedrag = df_gedrag.reindex(pd.date_range('10-01-2020', periods=600, freq='D'), method='ffill')
+df_gedrag = df_gedrag.stack().reset_index()
+df_gedrag.columns = ['Date_of_statistics', 'Security_region_code', 'vaccination_rate']
+# Merge
+df = df.merge(df_gedrag, how='left', left_on=['Date_of_statistics', 'Security_region_code'], right_on = ['Date_of_statistics', 'Security_region_code'])
 #%% Merge ROAZ region
 df_cases = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_aantallen_gemeente_per_dag.csv', sep=';', usecols=[2, 8]).drop_duplicates().dropna()
 index_to_drop = df_cases[(df_cases.Municipality_code == 'GM0363') & (df_cases.ROAZ_region == 'Netwerk Acute Zorg Noordwest')].index
 df_cases = df_cases.drop(index_to_drop)
 df = df.merge(df_cases, how='left', left_on=['Municipality_code'], right_on=['Municipality_code'])
+#%% Wastewater data, resampled to 1D
+df_wastewater =  pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_rioolwaterdata.csv', sep=';', parse_dates=[0], usecols=[1, 2, 3, 5])
+df_wastewater = df_wastewater[df_wastewater['Date_measurement']  >= '2020-10-01']
+df_wastewater = df_wastewater.sort_values(by=['RWZI_AWZI_code', 'Date_measurement'])
+df_wastewater = df_wastewater.reset_index(drop=True)
+df_wastewater = df_wastewater.set_index(['Date_measurement']).groupby(['RWZI_AWZI_code']).resample('1D').pad()
+df_wastewater = df_wastewater.drop(columns = ['RWZI_AWZI_code'])
+df_wastewater = df_wastewater.reset_index()
+# Translation table to population: https://www.cbs.nl/nl-nl/maatwerk/2021/06/inwoners-per-rioolwaterzuiveringsinstallatie-1-1-2021
+df_translation_table = pd.read_excel('https://www.cbs.nl/-/media/_excel/2021/06/aantal-inwoners-per-verzorgingsgebied-van-rioolwaterzuiveringsinstallaties.xlsx', sheet_name='Tabel 1', header=2)
+df_translation_table = df_translation_table.iloc[4:-5]
+df_translation_table = pd.concat((df_translation_table.iloc[:, 0:3], df_translation_table.iloc[:, 28:] / 100), axis=1)
+df_translation_table = df_translation_table.fillna(0)
+df_translation_table = df_translation_table.reset_index(drop=True)
+# Merge wastewater with translation table
+df_wastewater = df_wastewater.merge(df_translation_table, how='left', left_on=['RWZI_AWZI_code'], right_on=['Code Rioolwaterzuiveringsinstallatie'])
+df_wastewater = df_wastewater.drop(columns = ['Code Rioolwaterzuiveringsinstallatie', 'Naam Rioolwaterzuiveringsinstallatie'])
+df_wastewater['rna_flow'] = df_wastewater['RNA_flow_per_100000'] / 100000 * df_wastewater['Inwoners verzorgingsgebied']
+df_wastewater = df_wastewater.drop(columns = ['RWZI_AWZI_name', 'RNA_flow_per_100000', 'Inwoners verzorgingsgebied'])
+for col in df_wastewater.columns[2:-1]:
+    df_wastewater[col] = df_wastewater[col] * df_wastewater['rna_flow']
+df_wastewater = df_wastewater.set_index(['RWZI_AWZI_code', 'Date_measurement'])
+df_wastewater = df_wastewater.drop(columns = ['rna_flow'])
+df_wastewater = df_wastewater.stack()
+df_wastewater = df_wastewater.reset_index()
+df_wastewater.columns = ['RWZI_AWZI_code', 'Date_measurement', 'Municipality_code', 'rna_flow']
+df_wastewater = df_wastewater.groupby(['Municipality_code', 'Date_measurement']).sum()['rna_flow']
+df_wastewater = df_wastewater.reset_index()
+# Merge with cases
+df = df.merge(df_wastewater, how='left', left_on=['Municipality_code', 'Date_of_statistics'], right_on=['Municipality_code', 'Date_measurement'])
+df = df.drop(columns = ['Date_measurement'])
 #%% Label encoding
 from sklearn.preprocessing import LabelEncoder
 categorical_columns = ['Municipality_code', 'Security_region_code', 'ROAZ_region']
@@ -84,12 +130,13 @@ for lag in lags:
 
 # Short-term target growth    
 df['Hospital_admission_growth'] = df['Hospital_admission'] / df['Hospital_admission_rolling'] - 1  
+df["Hospital_admission_growth"] = df["Hospital_admission_growth"].fillna(0)
 df['Tested_positive_growth'] = df['Tested_positive'] / df['Tested_positive_lag7d'] - 1
 #%% Set target variable
 forecast_period = 7
 df['y'] = df.groupby(['Municipality_code_enc'])['Hospital_admission'].shift(-forecast_period)
 #%% Drop too old dates
-df = df[df['Date_of_statistics'] >= '2020-09-01']
+df = df[df['Date_of_statistics'] >= '2020-10-01']
 df = df.reset_index(drop=True)
 #%% CRPS per level
 def crps_levels(yhat_dist, y, levels):
@@ -117,19 +164,49 @@ def crps_levels(yhat_dist, y, levels):
        
     return loss.squeeze()
 
-#%% Validation: 8 weeks rolling
-n_validation_weeks = 8
+def wmseloss_objective(yhat, y, levels):
+    # Retrieve levels
+    yhat = yhat.clamp(0)
+    days = levels[0].T
+    n_days = days.shape[0]
+    n_levels = 4
+    loss = torch.zeros((len(levels) + 1, 1), device=yhat.device)
+    # First loss is CRPS over each sample
+    scale = 1 / n_levels
+    loss[0] = scale * (yhat - y).pow(2).sum()
+    # Loop over days. For each level there is a daily loss. The final level is the daily aggregate loss
+    for day in range(n_days):
+        current_day = days[day]
+        yd = y[current_day]
+        yhatd = yhat[current_day]
+        for i, level in enumerate(levels[1:]):
+            level_day = level[current_day].float()
+            level_yd = torch.einsum("i, ij -> j", yd, level_day)
+            level_yhatd = torch.einsum("i, ij -> j", yhatd, level_day)
+            n_levels = level.shape[1]
+            loss[i + 1] += scale * (level_yhatd - level_yd).pow(2).sum()
+
+        level_fyd = yd.sum(0)
+        level_fyhatd = yhatd.sum(0)
+        loss[-1] += scale * ((level_fyhatd - level_fyd).pow(2).sum())
+
+    loss_sum = loss.sum()
+    return loss_sum
+
+#%% Validation parameters
+n_validation_weeks = 1
 last_date = df['Date_of_statistics'].max()
-validation_dates = [last_date - pd.Timedelta((i + 1) * 7, 'D') for i in range(n_validation_weeks, 0, -1)]
+validation_dates = [(last_date - pd.Timedelta(forecast_period, "D")) - pd.Timedelta(i * 7, "D") for i in range(n_validation_weeks, 0, -1)]
 
 # Parameters
-device = torch.device(0)
+DEVICE = "gpu"
+torch_device = torch.device(DEVICE) if DEVICE == "cpu" else torch.device("cuda")
 
 params = {'min_split_gain':0,
       'min_data_in_leaf':1,
       'max_leaves':8,
       'max_bin':64,
-      'learning_rate':0.1,
+      'learning_rate':0.3,
       'n_estimators':2000,
       'verbose':2,
       'early_stopping_rounds':100,
@@ -138,60 +215,50 @@ params = {'min_split_gain':0,
       'seed':1,
       'lambda':1,
       'tree_correlation':0.0,
-      'device':'gpu',
+      "device": DEVICE,
       'output_device':'gpu',
-      'gpu_device_ids':(0,),
-      'derivatives':'exact',
-      'distribution':'negativebinomial'} 
+      'derivatives':'approx',
+      'distribution':'poisson'} 
 
 # Number of samples for distribution
 n_samples = 100
-
-# Objective
-def mseloss_objective(yhat, y):
-    gradient = (yhat - y)
-    hessian = yhat*0. + 1
-
-    return gradient, hessian
-
-def rmseloss_metric(yhat, y):
-    loss = (yhat - y).pow(2).mean().sqrt()
-
-    return loss
-
-# Validation loop: validate for n_validation_weeks, and across a choice of distributions & tree correlations
+#%% Validation loop: validate for n_validation_weeks, and across a choice of distributions & tree correlations
 df_val_result = pd.DataFrame()
-tree_correlations = np.arange(30, step=2) * 0.01
+tree_correlations = np.arange(-30, 30, step=2) * 0.01
 distributions = ['poisson', 'weibull', 'gumbel', 'gamma', 'negativebinomial']
 for fold, date in enumerate(validation_dates):
     df_train = df[df.Date_of_statistics <= date].copy()
     df_val = df[(df.Date_of_statistics > date) & (df.Date_of_statistics <= date + pd.Timedelta(7, 'D'))].copy()    
     iteminfo_val = df_val[['Date_of_statistics','Security_region_code_enc','ROAZ_region_enc']]
+    iteminfo_train = df_train[['Date_of_statistics','Security_region_code_enc','ROAZ_region_enc']]
     df_train.drop(columns=['Date_of_statistics','Municipality_name', 'Security_region_name', 'ROAZ_region'], inplace=True)
     df_val.drop(columns=['Date_of_statistics','Municipality_name', 'Security_region_name', 'ROAZ_region'], inplace=True)
     X_train, y_train = df_train.iloc[:, :-1], df_train.iloc[:, -1] 
     X_val, y_val = df_val.iloc[:, :-1], df_val.iloc[:, -1] 
-    # Create levels for hierarchical forecast
+    # Create levels for hierarchical forecast - validation set
     levels_val = []
-    levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['Date_of_statistics']).values).bool().to(device))
-    levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['Security_region_code_enc']).values).bool().to(device))    
-    levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['ROAZ_region_enc']).values).bool().to(device))    
+    levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['Date_of_statistics']).values).bool().to(torch_device))
+    levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['Security_region_code_enc']).values).bool().to(torch_device))    
+    levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['ROAZ_region_enc']).values).bool().to(torch_device))    
+    # Create levels for hierarchical forecast - training set
+    levels_train = []
+    levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['Date_of_statistics']).values).bool().to(torch_device))
+    levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['Security_region_code_enc']).values).bool().to(torch_device))    
+    levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['ROAZ_region_enc']).values).bool().to(torch_device))  
     # Create datasets
-    torchdata = lambda x : torch.from_numpy(x.values).float()
-    train_data = (torchdata(X_train), torchdata(y_train))
-    val_data = (torchdata(X_val), torchdata(y_val))
+    train_data = (X_train, y_train)
+    val_data = (X_val, y_val)
     model = PGBM()
-    model.train(train_data, objective=mseloss_objective, valid_set = val_data, metric=rmseloss_metric, params=params)
+    model.train(train_data, objective=wmseloss_objective, valid_set = val_data, metric=wmseloss_objective, params=params, levels_train=levels_train, levels_valid=levels_val)
     # Calculate best fitting tree correlation and distribution for this fold
-    crps_pgbm = np.zeros((len(tree_correlations), len(distributions)))
     for i, tree_correlation in enumerate(tree_correlations):
         for j, distribution in enumerate(distributions):
             print(f'Fold {fold} / Tree correlation {i} / Distribution {j}')
             model.params['tree_correlation'] = tree_correlation
             model.params['distribution'] = distribution
-            yhat_dist = model.predict_dist(val_data[0], n_samples=n_samples)
+            yhat_dist = model.predict_dist(X_val, n_samples=n_samples)
             yhat_dist = yhat_dist.clamp(0, 1e9)  # clipping to avoid negative predictions of symmetric distributions
-            crps = crps_levels(yhat_dist, val_data[1].to(device), levels_val)
+            crps = crps_levels(yhat_dist, torch.from_numpy(y_val.values).float().to(torch_device), levels_val)
             df_val_result = df_val_result.append({'fold': fold, 'tree_correlation': tree_correlation, 'distribution': distribution, 'best_iteration': model.best_iteration, 'best_score': model.best_score.cpu().numpy().item(), 'crps_municipality': crps[0].cpu().numpy().item(), 'crps_security_region': crps[1].cpu().numpy().item(), 'crps_roaz_region': crps[2].cpu().numpy().item(), 'crps_national': crps[3].cpu().numpy().item()}, ignore_index=True)
 
 timestamp = pd.Timestamp.now().strftime("%Y%m%d_%I%M%S")
@@ -199,37 +266,52 @@ timestamp = pd.Timestamp.now().strftime("%Y%m%d_%I%M%S")
 params['n_estimators'] = int(df_val_result['best_iteration'].median())
 # Set best fitting distribution and tree correlation according to validation result
 df_val_crps = df_val_result.groupby(['tree_correlation', 'distribution'])[['crps_municipality','crps_security_region','crps_roaz_region', 'crps_national']].mean()
-params['tree_correlation'] = df_val_crps.sum(1).idxmin()[0]
+params['tree_correlation'] = torch.tensor(df_val_crps.sum(1).idxmin()[0], device=torch_device, dtype=torch.float32)
 params['distribution'] = df_val_crps.sum(1).idxmin()[1]
 #%% Train on full dataset
 # Select training data
 test_date = validation_dates[-1] + pd.Timedelta(7, 'D')
 df_train = df[df.Date_of_statistics <= test_date].copy()
 df_test = df[df.Date_of_statistics > test_date].copy()
+# Create levels
+iteminfo_train = df_train[['Date_of_statistics','Security_region_code_enc','ROAZ_region_enc']]
+iteminfo_test = df_test[['Date_of_statistics','Security_region_code_enc','ROAZ_region_enc']]
+levels_train = []
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['Date_of_statistics']).values).bool().to(torch_device))
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['Security_region_code_enc']).values).bool().to(torch_device))    
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['ROAZ_region_enc']).values).bool().to(torch_device)) 
+levels_test = []
+levels_test.append(torch.from_numpy(pd.get_dummies(iteminfo_test['Date_of_statistics']).values).bool().to(torch_device))
+levels_test.append(torch.from_numpy(pd.get_dummies(iteminfo_test['Security_region_code_enc']).values).bool().to(torch_device))    
+levels_test.append(torch.from_numpy(pd.get_dummies(iteminfo_test['ROAZ_region_enc']).values).bool().to(torch_device)) 
+# Create train and test set
 df_train.drop(columns=['Date_of_statistics','Municipality_name', 'Security_region_name', 'ROAZ_region'], inplace=True)
 df_test.drop(columns=['Date_of_statistics','Municipality_name', 'Security_region_name', 'ROAZ_region'], inplace=True)
 X_train, y_train = df_train.iloc[:, :-1], df_train.iloc[:, -1] 
 X_test, y_test = df_test.iloc[:, :-1], df_test.iloc[:, -1] 
-train_data = (torchdata(X_train), torchdata(y_train))
+train_data = (X_train, y_train)
 # Train
 model = PGBM()
-model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
+model.train(train_data, objective=wmseloss_objective, valid_set = val_data, metric=wmseloss_objective, params=params, levels_train=levels_train, levels_valid=levels_val)
 # Predict
-yhat_test = model.predict(X_test).cpu().numpy()
+yhat_test = np.clip(model.predict(X_test).cpu().numpy(), 0, 1e9)
 yhat_test_dist = model.predict_dist(X_test, n_samples=n_samples)
 yhat_test_dist = np.clip(yhat_test_dist.cpu().numpy(), 0, 1e9)
 # Add results to df
 df_pred_test = pd.DataFrame(index=y_test.index, data=yhat_test, columns=['Hospital_admission_predicted'])
 col_names = ['sample_'+str(i) for i in range(n_samples)]
 df_pred_test_dist = pd.DataFrame(index=y_test.index, data=yhat_test_dist.T, columns=col_names)
-#%% Store predictions
+#%% Store predictions (only last date)
 df_result = df[['Date_of_statistics', 'Municipality_name', 'Security_region_name', 'ROAZ_region']].copy()
 df_result['Date_forecast_created'] = pd.Timestamp.now()
 df_result['Date_prediction'] = df_result['Date_of_statistics'] + pd.Timedelta(7, 'D')
 df_result = df_result[['Date_prediction', 'Date_forecast_created', 'Date_of_statistics', 'Municipality_name', 'Security_region_name', 'ROAZ_region']]
 df_result = pd.concat((df_result, df_pred_test, df_pred_test_dist), axis=1)
-df_result = df_result[df_result.Date_of_statistics > test_date].copy().reset_index(drop=True)
-#%% Plot all
+df_result = df_result[df_result.Date_of_statistics == df_result.Date_of_statistics.max()].copy().reset_index(drop=True)
+# Store predictions
+filename = 'predictions_hospital_admissions_covid_NL'
+df_result.to_csv(f'predictions_covid19/{timestamp}_{filename}.csv', index=False)
+#%% Plot predictions
 group = df_result.groupby(['Date_of_statistics'])
 aggregate_samples = group.sum()
 quantiles = [0.1, 0.9]
@@ -241,3 +323,21 @@ ax1.plot(group['Hospital_admission_predicted'].sum().index + pd.Timedelta(7, 'D'
 ax1.fill_between(group['Hospital_admission_predicted'].sum().index + pd.Timedelta(7, 'D'), quantile_values[0], quantile_values[1], color="#b9cfe7", label=f'P{quantiles[0]*100}-P{quantiles[1]*100} confidence interval')
 ax1.title.set_text('Hospital admissions - national level forecast')
 fig.legend(loc='upper right')
+#%% Plot feature importance
+feature_names = X_train.columns.values
+val_fi, idx_fi = torch.sort(model.feature_importance.cpu())
+# Feature importance from permutation importance on test set. This can be slow to calculate!
+permutation_importance = model.permutation_importance(X_test, y_test, levels=levels_test)
+mean_permutation_importance = permutation_importance.mean(1)
+_, idx_pi = torch.sort(mean_permutation_importance)
+idx_pi, permutation_importance = idx_pi.cpu(), permutation_importance.cpu()
+# Plot feature importance
+fig, ax = plt.subplots(1, 2)
+ax[0].barh(feature_names[idx_fi], val_fi)
+ax[0].set_title('Feature importance by cumulative split gain on training set')
+ax[0].set(xlabel = 'Cumulative split gain', ylabel='Feature')
+ax[1].set_title('Feature importance by feature permutation on test set')
+ax[1].boxplot(permutation_importance[idx_pi], labels=feature_names[idx_pi], vert=False)
+ax[1].set(xlabel = '% change in error metric', ylabel='Feature')
+fig.tight_layout()
+plt.show()

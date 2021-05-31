@@ -24,19 +24,19 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
 #%% Objective for pgbm
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
 #%% Load data
 X, y = load_boston(return_X_y=True)
-#%% Train pgbm
+#%% Train pgbm and save
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 train_data = (X_train, y_train)
@@ -44,7 +44,7 @@ train_data = (X_train, y_train)
 model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 model.save('model.pt')
-#%%
+#%% Load model
 model_new = PGBM()
 model_new.load('model.pt', torch.device('cpu'))
 #% Point and probabilistic predictions

@@ -24,13 +24,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
 #%% Objective for pgbm
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
