@@ -72,7 +72,7 @@ class PGBM(nn.Module):
         # Set some additional params
         self.params['max_nodes'] = self.params['max_leaves'] - 1
         torch.manual_seed(self.params['seed'])
-        self.epsilon = 1e-6
+        self.epsilon = 1e-4
 
     def _create_feature_bins(self, X):
         # Create array that contains the bins
@@ -100,7 +100,7 @@ class PGBM(nn.Module):
         gradient_upper = grad(loss_upper, yhat_upper)[0]
         gradient_lower = grad(loss_lower, yhat_lower)[0]
         hessian = (gradient_upper - gradient_lower) / (2 * self.epsilon)
-               
+        
         return gradient, hessian
 
     def _leaf_prediction(self, gradient, hessian, node, estimator):

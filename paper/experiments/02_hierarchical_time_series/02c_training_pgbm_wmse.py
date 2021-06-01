@@ -90,7 +90,6 @@ levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['cat_id_enc']).va
 # Hierarchical loss objective
 def wmseloss_objective(yhat, y, levels):
     # Retrieve levels
-    yhat = yhat.clamp(0)
     days = levels[0].T
     n_days = days.shape[0]
     n_levels = len(levels) + 1
@@ -120,7 +119,7 @@ def wmseloss_objective(yhat, y, levels):
 
 # Training params
 params = {'min_split_gain':0,
-          'min_data_in_leaf':5,
+          'min_data_in_leaf':1,
           'max_bin':1024,
           'max_leaves':64,
           'learning_rate':0.1,
