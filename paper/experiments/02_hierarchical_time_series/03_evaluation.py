@@ -22,10 +22,10 @@ import numpy as np
 import torch
 import properscoring as ps
 #%% Load data
-df_lgb = pd.read_csv('pgbm/experiments/02_hierarchical_time_series/results_lightgbm_mse.csv')
-df_pgbm = pd.read_csv('pgbm/experiments/02_hierarchical_time_series/results_pgbm_mse.csv')
-df_ngboost = pd.read_csv('pgbm/experiments/02_hierarchical_time_series/results_ngboost_mse.csv')
-df_pgbm_wmse = pd.read_csv('pgbm/experiments/02_hierarchical_time_series/results_pgbm_wmse.csv')
+df_lgb = pd.read_csv('experiments/02_hierarchical_time_series/results_lightgbm_mse.csv')
+df_pgbm = pd.read_csv('experiments/02_hierarchical_time_series/results_pgbm_mse.csv')
+df_ngboost = pd.read_csv('experiments/02_hierarchical_time_series/results_ngboost_mse.csv')
+df_pgbm_wmse = pd.read_csv('experiments/02_hierarchical_time_series/results_pgbm_wmse.csv')
 #%% Create levels
 iteminfo = df_lgb[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
 levels = []

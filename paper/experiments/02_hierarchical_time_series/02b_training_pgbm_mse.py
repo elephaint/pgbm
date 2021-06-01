@@ -23,7 +23,7 @@ import time
 from pgbm import PGBM
 import torch
 #%% Load data
-data = pd.read_hdf('pgbm/datasets/m5/m5_dataset_products.h5', key='data')
+data = pd.read_hdf('datasets/m5/m5_dataset_products.h5', key='data')
 # Remove last 28 days for now...
 data = data[data.date <=  '22-05-2016']
 data = data[data.weeks_on_sale > 0]
@@ -32,7 +32,7 @@ data = data.reset_index(drop=True)
 # Choose single store
 store_id = 0
 subset = data[data.store_id_enc == store_id]
-
+subset = subset.reset_index(drop=True)
 #%% Preprocessing for forecast
 cols_unknown = ['sales_lag1', 'sales_lag2',
    'sales_lag3', 'sales_lag4', 'sales_lag5', 'sales_lag6', 'sales_lag7',
@@ -60,13 +60,13 @@ def create_forecastset(data, cols_unknown, cols_known, forecast_day):
     
     return X, y
 #%% Set training parameters
-def objective(yhat, y):
+def objective(yhat, y, levels=None):
     gradient = (yhat - y)
-    hessian = 1 + yhat*0.
+    hessian = torch.ones_like(yhat)
     
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
@@ -127,7 +127,7 @@ model.train(train_data, objective=objective, metric=rmseloss_metric, params=para
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 # Save model
-torch.save(model, 'pgbm/experiments/02_hierarchical_time_series/pgbm_mse')
+model.save('experiments/02_hierarchical_time_series/pgbm_mse.model')
 # Predict 
 start = time.perf_counter()
 yhat = model.predict(X_test)
@@ -136,11 +136,11 @@ yhat_dist = model.predict_dist(test_data[0], n_samples=1000)
 end = time.perf_counter()
 print(f'Prediction time: {end - start:.2f}s')
 #%% RMSE
-error = rmseloss_metric(yhat.cpu(), test_data[1])
+error = rmseloss_metric(yhat.cpu(), test_data[1].values.squeeze())
 print(error)
 #%% Save
-df = pd.DataFrame({'y':test_data[1], 'yhat_pgbm_mu':yhat.cpu()})
+df = pd.DataFrame({'y':test_data[1].values.squeeze(), 'yhat_pgbm_mu':yhat.cpu()})
 df = pd.concat((df, pd.DataFrame(yhat_dist.cpu().clamp(0).numpy().T)), axis=1)
 df = pd.concat((iteminfo.reset_index(drop=True), df), axis=1)
-filename_day = 'pgbm/experiments/02_hierarchical_time_series/results_pgbm_mse.csv'
+filename_day = 'experiments/02_hierarchical_time_series/results_pgbm_mse.csv'
 df.to_csv(filename_day, index=False)

@@ -45,8 +45,6 @@ df = df.groupby(['Municipality_name', 'Security_region_name','Municipality_code'
 df = df.reset_index()
 #%% Merge test data
 df_tests = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_uitgevoerde_testen.csv', sep=';', parse_dates=[0], usecols=[2,3,5,6])
-df_tests['positivity_rate'] =  df_tests['Tested_positive'] / df_tests['Tested_with_result']
-df_tests["positivity_rate"] = df_tests["positivity_rate"].fillna(0)
 df = df.merge(df_tests, how='left', left_on=['Security_region_code', 'Date_of_statistics'], right_on=['Security_region_code', 'Date_of_statistics'])
 #%% Merge vaccination rate
 df_gedrag = pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_gedrag.csv', sep=';', parse_dates=[0, 1])
@@ -206,7 +204,7 @@ params = {'min_split_gain':0,
       'min_data_in_leaf':1,
       'max_leaves':8,
       'max_bin':64,
-      'learning_rate':0.3,
+      'learning_rate':0.1,
       'n_estimators':2000,
       'verbose':2,
       'early_stopping_rounds':100,
@@ -327,17 +325,19 @@ fig.legend(loc='upper right')
 feature_names = X_train.columns.values
 val_fi, idx_fi = torch.sort(model.feature_importance.cpu())
 # Feature importance from permutation importance on test set. This can be slow to calculate!
-permutation_importance = model.permutation_importance(X_test, y_test, levels=levels_test)
+permutation_importance = model.permutation_importance(X_test, levels=levels_test)
 mean_permutation_importance = permutation_importance.mean(1)
 _, idx_pi = torch.sort(mean_permutation_importance)
 idx_pi, permutation_importance = idx_pi.cpu(), permutation_importance.cpu()
 # Plot feature importance
-fig, ax = plt.subplots(1, 2)
-ax[0].barh(feature_names[idx_fi], val_fi)
-ax[0].set_title('Feature importance by cumulative split gain on training set')
-ax[0].set(xlabel = 'Cumulative split gain', ylabel='Feature')
-ax[1].set_title('Feature importance by feature permutation on test set')
-ax[1].boxplot(permutation_importance[idx_pi], labels=feature_names[idx_pi], vert=False)
-ax[1].set(xlabel = '% change in error metric', ylabel='Feature')
+fig, ax = plt.subplots()
+ax.set_title('Feature importance by feature permutation on test set')
+ax.boxplot(permutation_importance[idx_pi], labels=feature_names[idx_pi], vert=False)
+ax.set(xlabel = '% change in prediction', ylabel='Feature')
 fig.tight_layout()
 plt.show()
+# Plot feature importance
+fig, ax = plt.subplots()
+ax.barh(feature_names[idx_fi], val_fi)
+ax.set_title('Feature importance by cumulative split gain on training set')
+ax.set(xlabel = 'Cumulative split gain', ylabel='Feature')

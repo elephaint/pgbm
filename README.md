@@ -36,16 +36,16 @@ from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
 ```
 Second, we define our loss function and evaluation metric. 
-* The loss function should consume a torch vector of predictions `yhat` and ground truth values `y` and output the gradient and hessian with respect to `yhat` of the loss function.
-* The evaluation metric should consume a torch vector of predictions `yhat` and ground truth values `y`, and output a scalar loss.
+* The loss function should consume a torch vector of predictions `yhat` and ground truth values `y` and output the gradient and hessian with respect to `yhat` of the loss function. For more complicated loss functions, it is possible to add a `levels` variable, but this can be set to `None` in case it is not required.
+* The evaluation metric should consume a torch vector of predictions `yhat` and ground truth values `y`, and output a scalar loss. For more complicated evaluation metrics, it is possible to add a `levels` variable, but this can be set to `None` in case it is not required.
 ```
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, levels=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
@@ -75,7 +75,7 @@ crps = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm).mean()
 print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
 ```
-We can now plot the point and probabilistic predictions:
+We can now plot the point and probabilistic predictions (indicated by max and min bound on the predictions):
 ```
 plt.plot(test_data[1], 'o', label='Actual')
 plt.plot(yhat_point_pgbm.cpu(), 'ko', label='Point prediction PGBM')

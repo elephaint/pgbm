@@ -41,8 +41,7 @@ PGBM is a lightweight package. The following functions will be needed the most:
 * `crps_ensemble(yhat_dist, y)`. Calculate the CRPS score for a set of probabilistic predictions `yhat_dist` and ground truth `y`.
 * `save(filename)`. Save the state dict of a trained model to a file.
 * `load(filename, device)`. Load a model dictionary from a file to a device. The device should be a `torch.device`. 
-
-For inspecting the feature importance of a PGBM model, use the attribute `.feature_importance`. The feature importance is based on the weighted split gain.
+* `permutation_importance(X, y=None, n_permutations=10, levels=None)`. Calculate the feature importance by performing permutations across each feature for `n_repetitions`. If `y` is given, this function will compute the percentage error for each permutation of the error metric per feature. Hence, the result will tell you how much your error metric will change if that feature is randomly permuted. If `y` is not supplied, this function will return the weighted mean absolute percentage error compared to the base predictions (i.e., the predictions without permuting the features). This function can be slow if there are many features and samples. In addition to this function, one can more easily inspect the feature importance of a PGBM model by using the attribute `.feature_importance`. This feature importance is based on the cumulative split gain computed on the training set during training. Note that permutation importance often provides better results. For a more detailed discussion, see [here](https://scikit-learn.org/stable/auto_examples/inspection/plot_permutation_importance.html#sphx-glr-auto-examples-inspection-plot-permutation-importance-py). See also Example 9, which illustrates both feature importance methods.
 
 # GPU training #
 For training on GPU, it is required to set the following hyperparameters:

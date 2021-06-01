@@ -27,9 +27,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datasets import get_dataset, get_fold
 #%% Objective
-def objective(yhat, y):
+def objective(yhat, y, levels=None):
     gradient = (yhat - y)
-    hessian = 1 + yhat*0.
+    hessian = torch.ones_like(yhat)
     
     return gradient, hessian
 

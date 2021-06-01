@@ -16,12 +16,13 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
+#%% Import packages
 import pandas as pd
 import numpy as np
 import time
 import lightgbm as lgb
 #%% Load data
-data = pd.read_hdf('pgbm/datasets/m5/m5_dataset_products.h5', key='data')
+data = pd.read_hdf('datasets/m5/m5_dataset_products.h5', key='data')
 # Remove last 28 days for now...
 data = data[data.date <=  '22-05-2016']
 data = data[data.weeks_on_sale > 0]
@@ -112,7 +113,7 @@ model = lgb.train(params, train_set)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 # Save model
-model.save_model('pgbm/experiments/02_hierarchical_time_series/lgbm_mse')
+model.save_model('experiments/02_hierarchical_time_series/lgbm_mse.model')
 # Predict 
 start = time.perf_counter()
 yhat = model.predict(X_test)
@@ -128,5 +129,5 @@ error = rmseloss_metric(yhat, y)
 #%% Save
 df = pd.DataFrame({'y':y, 'yhat_lgb':yhat})
 df = pd.concat((iteminfo.reset_index(drop=True), df), axis=1)
-filename_day = 'pgbm/experiments/02_hierarchical_time_series/results_lightgbm_mse.csv'
+filename_day = 'experiments/02_hierarchical_time_series/results_lightgbm_mse.csv'
 df.to_csv(filename_day, index=False)

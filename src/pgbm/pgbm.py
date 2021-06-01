@@ -570,15 +570,16 @@ class PGBM(nn.Module):
         self.bins = state_dict['bins'].to(device)
         self.output_device = device
         
-    def permutation_importance(self, X, y, n_permutations=10, levels=None):
+    def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
         X = self._convert_array(X)
-        y = self._convert_array(y)
         n_samples = X.shape[0]
         n_features = X.shape[1]
         permutation_importance_metric = torch.zeros((n_features, n_permutations), device=X.device, dtype=X.dtype)
         # Calculate base score
         yhat_base = self.predict(X)
-        base_metric = self.metric(yhat_base, y, levels)
+        if y is not None:
+            y = self._convert_array(y)
+            base_metric = self.metric(yhat_base, y, levels)
         # Loop over permuted features
         for feature in range(n_features):
             X_permuted = torch.zeros((n_permutations, n_samples, n_features), device=X.device, dtype=X.dtype)
@@ -591,9 +592,14 @@ class PGBM(nn.Module):
             X_permuted = X_permuted.reshape(n_permutations * n_samples, n_features)
             yhat = self.predict(X_permuted)
             yhat = yhat.reshape(n_permutations, n_samples)
-            for permutation in range(n_permutations):
-                permuted_metric = self.metric(yhat[permutation], y, levels)
-                permutation_importance_metric[feature, permutation] = ((permuted_metric / base_metric) - 1) * 100
+            if y is not None:
+                for permutation in range(n_permutations):
+                    permuted_metric = self.metric(yhat[permutation], y, levels)
+                    permutation_importance_metric[feature, permutation] = ((permuted_metric / base_metric) - 1) * 100
+            else:
+                # print(yhat_base.unsqueeze(0).shape)
+                # print((yhat_base.unsqueeze(0) - yhat).abs().sum(1) / yhat_base.sum())
+                permutation_importance_metric[feature] = (yhat_base.unsqueeze(0) - yhat).abs().sum(1) / yhat_base.sum() * 100                
         
         return permutation_importance_metric                   
         

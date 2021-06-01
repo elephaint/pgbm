@@ -20,6 +20,7 @@
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+from pathlib import Path
 pd.set_option('display.width', 800)
 pd.set_option('display.max_columns', 15)
 #%% Reduce memory
@@ -36,6 +37,8 @@ def reduce_mem(df):
                 df[col] = df[col].astype('int16')    
             elif col_dtype == pd.Int64Dtype():
                 df[col] = df[col].astype('int16')
+            elif col_dtype == pd.Float64Dtype():
+                df[col] = df[col].astype('float32')
         except:
             pass
         if col_dtype == 'int64':
@@ -48,9 +51,9 @@ def reduce_mem(df):
             
     return df
 #%% 1) Read datasets
-df_calendar = pd.read_csv('pgbm/datasets/m5/calendar.csv').fillna("None").convert_dtypes() # NaN's only in event fields, so fill with None string
-df_sales = pd.read_csv('pgbm/datasets/m5/sales_train_evaluation.csv').convert_dtypes()
-df_prices = pd.read_csv('pgbm/datasets/m5/sell_prices.csv').convert_dtypes()
+df_calendar = pd.read_csv(f'{Path(__file__).parent.parent.parent.absolute()}/datasets/m5/calendar.csv').fillna("None").convert_dtypes() # NaN's only in event fields, so fill with None string
+df_sales = pd.read_csv(f'{Path(__file__).parent.parent.parent.absolute()}/datasets/m5/sales_train_evaluation.csv').convert_dtypes()
+df_prices = pd.read_csv(f'{Path(__file__).parent.parent.parent.absolute()}/datasets/m5/sell_prices.csv').convert_dtypes()
 #%% 2) Label encoding of categorical information sales data
 #https://stackoverflow.com/questions/24458645/label-encoding-across-multiple-columns-in-scikit-learn
 df_itemids = df_sales[['id','item_id','dept_id','cat_id','store_id','state_id']].copy()
@@ -246,6 +249,6 @@ df = df[cols]
 df['id'] = df['id'].astype('O')
 df = df.sort_values(by=['store_id_enc','item_id_enc','date'])
 df = df.reset_index(drop=True)
-filename = 'pgbm/datasets/m5/m5_dataset_products.h5'
+filename = f'{Path(__file__).parent.parent.parent.absolute()}/datasets/m5/m5_dataset_products.h5'
 store = pd.HDFStore(filename)
 df.to_hdf(filename, key='data')

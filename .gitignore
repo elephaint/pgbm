@@ -130,9 +130,11 @@ dmypy.json
 
 # Specific directories & files
 **/_old
-datasets/m5
+/paper/datasets/m5
 *.xls
 *.txt
 *.xlsx
 notes/
 *.csv
+*.model
+*.h5

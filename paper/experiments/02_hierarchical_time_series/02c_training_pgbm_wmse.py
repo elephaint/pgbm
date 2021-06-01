@@ -23,7 +23,7 @@ import time
 from pgbm import PGBM
 import torch
 #%% Load data
-data = pd.read_hdf('pgbm/datasets/m5/m5_dataset_products.h5', key='data')
+data = pd.read_hdf('datasets/m5/m5_dataset_products.h5', key='data')
 # Remove last 28 days for now...
 data = data[data.date <=  '22-05-2016']
 data = data[data.weeks_on_sale > 0]
@@ -32,7 +32,7 @@ data = data.reset_index(drop=True)
 # Choose single store
 store_id = 0
 subset = data[data.store_id_enc == store_id]
-
+subset = subset.reset_index(drop=True)
 #%% Preprocessing for forecast
 cols_unknown = ['sales_lag1', 'sales_lag2',
    'sales_lag3', 'sales_lag4', 'sales_lag5', 'sales_lag6', 'sales_lag7',
@@ -60,72 +60,71 @@ def create_forecastset(data, cols_unknown, cols_known, forecast_day):
     
     return X, y
 #%% Validation loop
-device = torch.device(2)
+device = torch.device(0)
 forecast_day = 0
 X, y = create_forecastset(subset, cols_unknown, cols_known, forecast_day)
 train_last_date = '2016-03-27'
 val_first_date = '2016-03-28'
 val_last_date = '2016-04-24'
 X_train, y_train = X[X.date <= train_last_date], y[y.date <= train_last_date]
-iteminfo = X_train[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
-X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_val, y_val = X[(X.date >= val_first_date) & (X.date <= val_last_date)], y[(y.date >= val_first_date) & (y.date <= val_last_date)]
+# Iteminfo for level creation
+iteminfo_train = X_train[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
+iteminfo_val = X_val[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
+X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_val, y_val = X_val.drop(columns='date'), y_val.drop(columns='date')
+# Create datasets
 train_data = (X_train, y_train)
 valid_data = (X_val, y_val)
 # Create levels
-levels = []
-levels.append(torch.from_numpy(pd.get_dummies(iteminfo['date']).values).bool().to(device))
-levels.append(torch.from_numpy(pd.get_dummies(iteminfo['dept_id_enc']).values).bool().to(device))
-levels.append(torch.from_numpy(pd.get_dummies(iteminfo['cat_id_enc']).values).bool().to(device))
+levels_train = []
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['date']).values).bool().to(device))
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['dept_id_enc']).values).bool().to(device))
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['cat_id_enc']).values).bool().to(device))
+levels_val = []
+levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['date']).values).bool().to(device))
+levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['dept_id_enc']).values).bool().to(device))
+levels_val.append(torch.from_numpy(pd.get_dummies(iteminfo_val['cat_id_enc']).values).bool().to(device))
 #%% Set training parameters
-def wmse_objective(yhat, y, levels):
-    # Retrieve dummies
+
+# Hierarchical loss objective
+def wmseloss_objective(yhat, y, levels):
+    # Retrieve levels
+    yhat = yhat.clamp(0)
     days = levels[0].T
-    depts = levels[1]
-    cats = levels[2]
     n_days = days.shape[0]
-    n_depts = levels[1].shape[1]
-    n_cats = levels[2].shape[1]
-    # Create scaling factors for loss levels
-    n_levels = 4
-    scale_0 = 1 / (n_levels)
-    scale_1 = 1 / (n_levels * n_days * n_depts)
-    scale_2 = 1 / (n_levels * n_days * n_cats)
-    scale_3 = 1 / (n_levels * n_days)
-    # First level
-    level_0 = (yhat - y).pow(2).sum()
-    loss = scale_0 * level_0
-    # Loop over days    
+    n_levels = len(levels) + 1
+    loss = torch.zeros((n_levels, 1), device=yhat.device)
+    # First loss is CRPS over each sample
+    scale_basis = 1 / n_levels
+    loss[0] = scale_basis * (yhat - y).pow(2).sum()
+    # Loop over days. For each level there is a daily loss. The final level is the daily aggregate loss
     for day in range(n_days):
         current_day = days[day]
         yd = y[current_day]
         yhatd = yhat[current_day]
-        deptd = depts[current_day]
-        catd = cats[current_day]
-        level_1yd = (yd[:, None] * deptd).sum(0)
-        level_1yhatd = (yhatd[:, None] * deptd).sum(0)
-        loss += scale_1 * ((level_1yhatd - level_1yd).pow(2).sum())
-        level_2yd = (yd[:, None] * catd).sum(0)
-        level_2yhatd = (yhatd[:, None] * catd).sum(0)
-        loss += scale_2 * ((level_2yhatd - level_2yd).pow(2).sum())
-        level_3yd = yd.sum(0)
-        level_3yhatd = yhatd.sum(0)  
-        loss += scale_3 * ((level_3yhatd - level_3yd).pow(2).sum())
-    
-    return loss
+        for i, level in enumerate(levels[1:]):
+            level_day = level[current_day].float()
+            level_yd = torch.einsum("i, ij -> j", yd, level_day)
+            level_yhatd = torch.einsum("i, ij -> j", yhatd, level_day)
+            n_categories = level.shape[1]
+            scale = scale_basis * (1 / (n_days * n_categories))
+            loss[i + 1] += scale * (level_yhatd - level_yd).pow(2).sum()
 
-def rmseloss_metric(yhat, y):
-    loss = (yhat - y).pow(2).mean().sqrt()
+        level_fyd = yd.sum(0)
+        level_fyhatd = yhatd.sum(0)
+        loss[-1] += scale_basis * (1 / n_days) * ((level_fyhatd - level_fyd).pow(2).sum())
 
-    return loss
+    loss_sum = loss.sum()
+    return loss_sum
 
+# Training params
 params = {'min_split_gain':0,
-          'min_data_in_leaf':1,
+          'min_data_in_leaf':5,
           'max_bin':1024,
           'max_leaves':64,
           'learning_rate':0.1,
-          'n_estimators':1000,
+          'n_estimators':2000,
           'verbose':2,
           'feature_fraction':0.7,
           'bagging_fraction':0.7,
@@ -135,13 +134,13 @@ params = {'min_split_gain':0,
           'tree_correlation':0.03,
           'device':'gpu',
           'output_device':'gpu',
-          'gpu_device_ids':(2,),
+          'gpu_device_ids':(device.index,),
           'derivatives':'approx',
           'distribution':'normal'} 
 #%% Validation loop
 model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=wmse_objective, metric=rmseloss_metric, valid_set=valid_data, params=params, levels=levels)
+model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, valid_set=valid_data, params=params, levels_train=levels_train, levels_valid=levels_val)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 #%% Test loop
@@ -150,27 +149,27 @@ X, y = create_forecastset(subset, cols_unknown, cols_known, forecast_day)
 train_last_date = '2016-04-24'
 test_first_date = '2016-04-25'
 X_train, y_train = X[X.date <= train_last_date], y[y.date <= train_last_date]
-iteminfo_train = X_train[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
-X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_test, y_test = X[X.date >= test_first_date], y[y.date >= test_first_date]
+iteminfo_train = X_train[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
 iteminfo_test = X_test[['date','item_id_enc', 'dept_id_enc', 'cat_id_enc']]
+X_train, y_train = X_train.drop(columns='date'), y_train.drop(columns='date')
 X_test, y_test = X_test.drop(columns='date'), y_test.drop(columns='date')
 train_data = (X_train, y_train)
 test_data = (X_test, y_test)
 # Create levels
-levels = []
-levels.append(torch.from_numpy(pd.get_dummies(iteminfo_train['date']).values).bool().to(device))
-levels.append(torch.from_numpy(pd.get_dummies(iteminfo_train['dept_id_enc']).values).bool().to(device))
-levels.append(torch.from_numpy(pd.get_dummies(iteminfo_train['cat_id_enc']).values).bool().to(device))
-# Train
-params['n_estimators'] = 294
+levels_train = []
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['date']).values).bool().to(device))
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['dept_id_enc']).values).bool().to(device))
+levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['cat_id_enc']).values).bool().to(device))
+# Train. 
+params['n_estimators'] = model.best_iteration + 1
 model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=wmse_objective, metric=rmseloss_metric, params=params, levels=levels)
+model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 # Save model
-torch.save(model, 'pgbm/experiments/02_hierarchical_time_series/pgbm_wmse')
+model.save('experiments/02_hierarchical_time_series/pgbm_wmse.model')
 # Predict 
 start = time.perf_counter()
 yhat = model.predict(test_data[0])
@@ -179,11 +178,16 @@ yhat_dist = model.predict_dist(test_data[0], n_samples=1000)
 end = time.perf_counter()
 print(f'Prediction time: {end - start:.2f}s')
 #%% RMSE
-error = rmseloss_metric(yhat.cpu(), test_data[1])
+def rmseloss_metric(yhat, y, levels=None):
+    loss = (yhat - y).pow(2).mean().sqrt()
+
+    return loss
+
+error = rmseloss_metric(yhat.cpu(), test_data[1].values.squeeze())
 print(error)
 #%% Save
-df = pd.DataFrame({'y':test_data[1], 'yhat_pgbm_mu':yhat.cpu()})
+df = pd.DataFrame({'y':test_data[1].values.squeeze(), 'yhat_pgbm_mu':yhat.cpu()})
 df = pd.concat((df, pd.DataFrame(yhat_dist.cpu().clamp(0).numpy().T)), axis=1)
 df = pd.concat((iteminfo_test.reset_index(drop=True), df), axis=1)
-filename_day = 'pgbm/experiments/02_hierarchical_time_series/results_pgbm_wmse.csv'
+filename_day = 'experiments/02_hierarchical_time_series/results_pgbm_wmse.csv'
 df.to_csv(filename_day, index=False)
