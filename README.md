@@ -15,12 +15,14 @@ Run `pip install pgbm` from a terminal within the virtual environment of your ch
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 
 #### Dependencies ####
-
+The core package has the following dependencies: 
 * PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/)
 * Numpy >= 1.19.2 (install via `pip` or `conda`; https://github.com/numpy/numpy)
 * CUDA Toolkit 11.0 (or one matching your PyTorch distribution) (https://developer.nvidia.com/cuda-toolkit)
 * PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but contact the author if you find it still not working even after installing these dependencies. 
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
+
+We also provide PGBM based on a Numba backend for those users who do not want to use PyTorch. In that case, it is required to install Numba. The Numba backend does not support differentiable loss functions. For an example of using PGBM with the Numba backend, see the examples.
 
 ### Examples ###
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.

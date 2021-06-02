@@ -72,7 +72,7 @@ class PGBM(nn.Module):
         # Set some additional params
         self.params['max_nodes'] = self.params['max_leaves'] - 1
         torch.manual_seed(self.params['seed'])
-        self.epsilon = 1e-4
+        self.epsilon = 1.0e-4
 
     def _create_feature_bins(self, X):
         # Create array that contains the bins
@@ -493,6 +493,8 @@ class PGBM(nn.Module):
             yhat = NegativeBinomial(counts, probs).sample([n_samples])
         elif self.params['distribution'] == 'poisson':
             yhat = Poisson(mu.clamp(1e-9)).sample([n_samples])
+        else:
+            print('Distribution not (yet) supported')
           
         
         return yhat
@@ -527,23 +529,23 @@ class PGBM(nn.Module):
     
     def save(self, filename):
         params = self.params.copy()
-        params['learning_rate'] = params['learning_rate'].cpu()
-        params['tree_correlation'] = params['tree_correlation'].cpu()
-        params['lambda'] = params['lambda'].cpu()
-        params['min_split_gain'] = params['min_split_gain'].cpu()
-        params['min_data_in_leaf'] = params['min_data_in_leaf'].cpu()
+        params['learning_rate'] = params['learning_rate'].cpu().numpy()
+        params['tree_correlation'] = params['tree_correlation'].cpu().numpy()
+        params['lambda'] = params['lambda'].cpu().numpy()
+        params['min_split_gain'] = params['min_split_gain'].cpu().numpy()
+        params['min_data_in_leaf'] = params['min_data_in_leaf'].cpu().numpy()
 
-        state_dict = {'nodes_idx': self.nodes_idx.cpu(),
-                      'nodes_split_feature':self.nodes_split_feature.cpu(),
-                      'nodes_split_bin':self.nodes_split_bin.cpu(),
-                      'leaves_idx':self.leaves_idx.cpu(),
-                      'leaves_mu':self.leaves_mu.cpu(),
-                      'leaves_var':self.leaves_var.cpu(),
-                      'feature_importance':self.feature_importance.cpu(),
+        state_dict = {'nodes_idx': self.nodes_idx.cpu().numpy(),
+                      'nodes_split_feature':self.nodes_split_feature.cpu().numpy(),
+                      'nodes_split_bin':self.nodes_split_bin.cpu().numpy(),
+                      'leaves_idx':self.leaves_idx.cpu().numpy(),
+                      'leaves_mu':self.leaves_mu.cpu().numpy(),
+                      'leaves_var':self.leaves_var.cpu().numpy(),
+                      'feature_importance':self.feature_importance.cpu().numpy(),
                       'best_iteration':self.best_iteration,
                       'params':params,
-                      'yhat0':self.yhat_0.cpu(),
-                      'bins':self.bins.cpu()}
+                      'yhat0':self.yhat_0.cpu().numpy(),
+                      'bins':self.bins.cpu().numpy()}
         
         with open(filename, 'wb') as handle:
             pickle.dump(state_dict, handle)   
@@ -552,22 +554,22 @@ class PGBM(nn.Module):
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
         
-        self.nodes_idx = state_dict['nodes_idx'].to(device)
-        self.nodes_split_feature  = state_dict['nodes_split_feature'].to(device)
-        self.nodes_split_bin  = state_dict['nodes_split_bin'].to(device)
-        self.leaves_idx  = state_dict['leaves_idx'].to(device)
-        self.leaves_mu  = state_dict['leaves_mu'].to(device)
-        self.leaves_var  = state_dict['leaves_var'].to(device)
-        self.feature_importance  = state_dict['feature_importance'].to(device)
-        self.best_iteration  = state_dict['best_iteration']
+        self.nodes_idx = torch.from_numpy(state_dict['nodes_idx']).to(device)
+        self.nodes_split_feature  = torch.from_numpy(state_dict['nodes_split_feature']).to(device)
+        self.nodes_split_bin  = torch.from_numpy(state_dict['nodes_split_bin']).to(device)
+        self.leaves_idx  = torch.from_numpy(state_dict['leaves_idx']).to(device)
+        self.leaves_mu  = torch.from_numpy(state_dict['leaves_mu']).to(device)
+        self.leaves_var  = torch.from_numpy(state_dict['leaves_var']).to(device)
+        self.feature_importance  = torch.from_numpy(state_dict['feature_importance']).to(device)
+        self.best_iteration  = torch.from_numpy(state_dict['best_iteration'])
         self.params  = state_dict['params']
-        self.params['learning_rate'] = self.params['learning_rate'].to(device)
-        self.params['tree_correlation'] = self.params['tree_correlation'].to(device)
-        self.params['lambda'] = self.params['lambda'].cpu()
-        self.params['min_split_gain'] = self.params['min_split_gain'].cpu()
-        self.params['min_data_in_leaf'] = self.params['min_data_in_leaf'].cpu()
-        self.yhat_0  = state_dict['yhat0'].to(device)
-        self.bins = state_dict['bins'].to(device)
+        self.params['learning_rate'] = torch.from_numpy(self.params['learning_rate']).to(device)
+        self.params['tree_correlation'] = torch.from_numpy(self.params['tree_correlation']).to(device)
+        self.params['lambda'] = torch.from_numpy(self.params['lambda'].cpu())
+        self.params['min_split_gain'] = torch.from_numpy(self.params['min_split_gain']).cpu()
+        self.params['min_data_in_leaf'] = torch.from_numpy(self.params['min_data_in_leaf']).cpu()
+        self.yhat_0  = torch.from_numpy(state_dict['yhat0']).to(device)
+        self.bins = torch.from_numpy(state_dict['bins']).to(device)
         self.output_device = device
         
     def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
@@ -597,8 +599,6 @@ class PGBM(nn.Module):
                     permuted_metric = self.metric(yhat[permutation], y, levels)
                     permutation_importance_metric[feature, permutation] = ((permuted_metric / base_metric) - 1) * 100
             else:
-                # print(yhat_base.unsqueeze(0).shape)
-                # print((yhat_base.unsqueeze(0) - yhat).abs().sum(1) / yhat_base.sum())
                 permutation_importance_metric[feature] = (yhat_base.unsqueeze(0) - yhat).abs().sum(1) / yhat_base.sum() * 100                
         
         return permutation_importance_metric                   

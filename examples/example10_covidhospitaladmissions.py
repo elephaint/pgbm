@@ -164,7 +164,6 @@ def crps_levels(yhat_dist, y, levels):
 
 def wmseloss_objective(yhat, y, levels):
     # Retrieve levels
-    yhat = yhat.clamp(0)
     days = levels[0].T
     n_days = days.shape[0]
     n_levels = 4
@@ -290,7 +289,7 @@ X_test, y_test = df_test.iloc[:, :-1], df_test.iloc[:, -1]
 train_data = (X_train, y_train)
 # Train
 model = PGBM()
-model.train(train_data, objective=wmseloss_objective, valid_set = val_data, metric=wmseloss_objective, params=params, levels_train=levels_train, levels_valid=levels_val)
+model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)
 # Predict
 yhat_test = np.clip(model.predict(X_test).cpu().numpy(), 0, 1e9)
 yhat_test_dist = model.predict_dist(X_test, n_samples=n_samples)
