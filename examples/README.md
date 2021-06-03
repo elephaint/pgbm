@@ -31,6 +31,7 @@ PGBM employs the following set of hyperparameters (listed in alphabetical order)
 * `n_estimators`, default=`100`. The number of trees to create. Typically setting this value higher may improve performance, at the expense of training speed and potential for overfit. Use in conjunction with `learning rate` and `max_leaves`; more trees generally requires a lower `learning_rate` and/or a lower `max_leaves`.
 * `output_device`, default=`cpu`. Only applicable when training on `gpu`. When training on `gpu`, it is possible to run everything on `cpu` except for the split decision. In that case, use `gpu` as `device` and `cpu` as `output_device`. Not applicable for Numba backend.
 * `seed`, default=`1`. Random seed to use for `feature_fraction` and `bagging_fraction`.
+* `split_parallel`, default=`feature`. Choose from `feature` or `sample`. This parameter determines whether to parallelize the split decision computation across the sample dimension or across the feature dimension. Typically, for smaller datasets with few features `feature` is the fastest, whereas for larger datasets and/or datasets with many (e.g. > 50) features, `sample` will provide better results. Only applicable when using the Numba backend.
 * `tree_correlation`, default=`0.03`. Tree correlation hyperparameter. This controls the amount of correlation we assume to exist between each subsequent tree in the ensemble. A good starting value is `log_10(n_samples) / 100`.
 * `verbose`, default=`2`. Flag to output metric results for each iteration. Set to `1` to supress output.
 
