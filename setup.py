@@ -16,7 +16,7 @@ setuptools.setup(
     include_package_data = True,
 	package_dir={"": "src"},
     classifiers=[
-         "Programming Language :: Python :: 3",
+         "Programming Language :: Python :: 3.8",
          "License :: OSI Approved :: Apache Software License",
          "Operating System :: OS Independent"],
     python_requires='>=3.8',

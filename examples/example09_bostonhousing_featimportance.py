@@ -55,17 +55,27 @@ print(f'CRPS PGBM: {crps:.2f}')
 #%% Feature importance from split gain on training set
 feature_names = load_boston()['feature_names']
 val_fi, idx_fi = torch.sort(model.feature_importance.cpu())
-#%% Feature importance from permutation importance on test set. This can be slow to calculate!
-permutation_importance = model.permutation_importance(X_test, y_test)
-mean_permutation_importance = permutation_importance.mean(1)
-_, idx_pi = torch.sort(mean_permutation_importance)
+#%% Feature importance from permutation importance on test set (supervised). This can be slow to calculate!
+permutation_importance_supervised = model.permutation_importance(X_test, y_test)
+mean_permutation_importance_supervised = permutation_importance_supervised.mean(1)
+_, idx_pi_sup = torch.sort(mean_permutation_importance_supervised)
+#%% Feature importance from permutation importance on test set (unsupervised). This can be slow to calculate!
+permutation_importance_unsupervised = model.permutation_importance(X_test)
+mean_permutation_importance_unsupervised = permutation_importance_unsupervised.mean(1)
+_, idx_pi_unsup = torch.sort(mean_permutation_importance_unsupervised)
 #%% Plot both
-fig, ax = plt.subplots(1, 2)
+fig, ax = plt.subplots(1, 3)
 ax[0].barh(feature_names[idx_fi], val_fi)
 ax[0].set_title('Feature importance by cumulative split gain on training set')
 ax[0].set(xlabel = 'Cumulative split gain', ylabel='Feature')
-ax[1].set_title('Feature importance by feature permutation on test set')
-ax[1].boxplot(permutation_importance[idx_pi], labels=feature_names[idx_pi], vert=False)
+
+ax[1].set_title('Feature importance by feature permutation on test set (supervised)')
+ax[1].boxplot(permutation_importance_supervised[idx_pi_sup], labels=feature_names[idx_pi_sup], vert=False)
 ax[1].set(xlabel = '% change in error metric', ylabel='Feature')
+
+ax[2].set_title('Feature importance by feature permutation on test set (unsupervised)')
+ax[2].boxplot(permutation_importance_unsupervised[idx_pi_unsup], labels=feature_names[idx_pi_unsup], vert=False)
+ax[2].set(xlabel = '% change in predictions', ylabel='Feature')
+
 fig.tight_layout()
 plt.show()
