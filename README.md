@@ -8,7 +8,7 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 * Auto-differentiation of custom loss functions.
 * Native GPU-acceleration.
 
-It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link).
+It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 ### Installation ###
 Run `pip install pgbm` from a terminal within the virtual environment of your choice.
@@ -28,14 +28,13 @@ The core package has the following dependencies:
 
 We also provide PGBM based on a Numba backend for those users who do not want to use PyTorch. In that case, it is required to [install Numba](https://numba.readthedocs.io/en/stable/user/installing.html). The Numba backend does not support differentiable loss functions. For an example of using PGBM with the Numba backend, see the [examples](https://github.com/elephaint/pgbm/tree/main/examples). 
 
-### Examples ###
+### Support ###
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
 
-### Support ###
-See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) for an overview of hyperparameters and a function reference. [Email the author](mailto:o.r.sprangers@uva.nl) for further support.
+In case further support is required, [open an issue](https://github.com/elephaint/pgbm/issues).
 
 ### Reference ###
-[Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Accepted for publication at [SIGKDD '21](https://www.kdd.org/kdd2021/).
+[Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining ([KDD ’21](https://www.kdd.org/kdd2021/)), August 14–18, 2021, Virtual Event, Singapore.
 
 The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/paper/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/paper/datasets) folder (Higgs) and to datasets/m5 (m5).
 
