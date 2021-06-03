@@ -19,10 +19,9 @@
 
 #%% Load packages
 import torch
-from pgbm import PGBM
+from pgbm import PGBM, PGBM_numba
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
-import matplotlib.pyplot as plt
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
@@ -44,9 +43,9 @@ train_data = (X_train, y_train)
 model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 model.save('model.pt')
-#%% Load model
+#%% Load model trained with PyTorch-CPU and predict with GPU
 model_new = PGBM()
-model_new.load('model.pt', torch.device('cpu'))
+model_new.load('model.pt', torch.device(0))
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)
 yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
@@ -54,10 +53,13 @@ yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
 crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Plot all samples
-plt.rcParams.update({'font.size': 22})
-plt.plot(y_test, 'o', label='Actual')
-plt.plot(yhat_point.cpu(), 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
-plt.legend()
+#%% Load model trained with PyTorch-CPU and predict with Numba backend. Note that no device needs to be entered.
+model_new = PGBM_numba()
+model_new.load('model.pt')
+#% Point and probabilistic predictions
+yhat_point = model_new.predict(X_test)
+yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
+# Scoring
+crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
+# Print final scores
+print(f'CRPS PGBM: {crps:.2f}')

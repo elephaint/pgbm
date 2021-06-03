@@ -382,7 +382,7 @@ class PGBM_numba(object):
         with open(filename, 'wb') as handle:
             pickle.dump(state_dict, handle)   
     
-    def load(self, filename, device):
+    def load(self, filename):
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
         
@@ -397,7 +397,6 @@ class PGBM_numba(object):
         self.params  = state_dict['params']
         self.yhat_0  = state_dict['yhat0']
         self.bins = state_dict['bins']
-        self.output_device = device
         
     # Calculate permutation importance of a PGBM model
     def permutation_importance(self, X, y=None, n_permutations=10, levels=None):

@@ -152,7 +152,6 @@ class PGBM(nn.Module):
                     Gl, Hl = parallel.gather(outputs, self.device_ids[0])
                     Gl, Hl = Gl.sum(0).to(self.output_device), Hl.sum(0).to(self.output_device)
                 else:
-                    # Gl, Hl = parallelsum_kernel.split_decision(X_node, gradient_node, hessian_node, self.params['max_bin'])
                     left_idx = torch.gt(X_node.unsqueeze(-1), drange).float();
                     Gl = torch.einsum("i, jik -> jk", gradient_node, left_idx);
                     Hl = torch.einsum("i, jik -> jk", hessian_node, left_idx);
@@ -550,7 +549,9 @@ class PGBM(nn.Module):
         with open(filename, 'wb') as handle:
             pickle.dump(state_dict, handle)   
     
-    def load(self, filename, device):
+    def load(self, filename, device=None):
+        if device is None:
+            device = torch.device('cpu')
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
         
@@ -561,13 +562,13 @@ class PGBM(nn.Module):
         self.leaves_mu  = torch.from_numpy(state_dict['leaves_mu']).to(device)
         self.leaves_var  = torch.from_numpy(state_dict['leaves_var']).to(device)
         self.feature_importance  = torch.from_numpy(state_dict['feature_importance']).to(device)
-        self.best_iteration  = torch.from_numpy(state_dict['best_iteration'])
+        self.best_iteration  = state_dict['best_iteration']
         self.params  = state_dict['params']
         self.params['learning_rate'] = torch.from_numpy(self.params['learning_rate']).to(device)
         self.params['tree_correlation'] = torch.from_numpy(self.params['tree_correlation']).to(device)
-        self.params['lambda'] = torch.from_numpy(self.params['lambda'].cpu())
-        self.params['min_split_gain'] = torch.from_numpy(self.params['min_split_gain']).cpu()
-        self.params['min_data_in_leaf'] = torch.from_numpy(self.params['min_data_in_leaf']).cpu()
+        self.params['lambda'] = torch.from_numpy(self.params['lambda']).to(device)
+        self.params['min_split_gain'] = torch.from_numpy(self.params['min_split_gain']).to(device)
+        self.params['min_data_in_leaf'] = torch.from_numpy(self.params['min_data_in_leaf']).to(device)
         self.yhat_0  = torch.from_numpy(state_dict['yhat0']).to(device)
         self.bins = torch.from_numpy(state_dict['bins']).to(device)
         self.output_device = device

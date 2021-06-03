@@ -1,6 +1,6 @@
 ==============================================================
  PGBM
- Copyright 2021 Olivier Sprangers
+ Copyright 2021 Olivier Sprangers as part of Airlab Amsterdam
 ==============================================================
 
 The core package makes use of:
@@ -19,6 +19,16 @@ The core package makes use of:
 	Numpy:
 		Numpy(https://github.com/numpy/numpy)
 		Copyright (c) 2005-2021, NumPy Developers.
+	
+	
+	Pandas:
+		Pandas(https://github.com/pandas-dev/pandas)
+		Copyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team. All rights reserved.
+		Copyright (c) 2011-2021, Open source contributors.
+	
+	Numba:
+		Numba (http://numba.pydata.org/)
+		Copyright (c) 2012, Anaconda, Inc.
 
 In the experimental section the following additional packages are used:
 	LightGBM (https://github.com/microsoft/LightGBM)
@@ -29,13 +39,6 @@ In the experimental section the following additional packages are used:
 
 	Properscoring (https://github.com/TheClimateCorporation/properscoring)
 	Copyright (c) 2015 The Climate Corporation
-		
-	Numpy (https://github.com/numpy/numpy)
-	Copyright (c) 2005-2021, NumPy Developers.
-
-	Pandas (https://github.com/pandas-dev/pandas)
-	Copyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team. All rights reserved.
-	Copyright (c) 2011-2021, Open source contributors.
 		
 	NGBoost (https://github.com/stanfordmlgroup/ngboost)
 	Copyright (c) 2019 Tony Duan, Anand Avati, Daisy Yi Ding, Khanh K. Thai, Sanjay Basu, Andrew Y. Ng, Alejandro Schuler
@@ -50,12 +53,14 @@ We use the following datasets from the UCI Machine Learning Repository:
 	* [energy](https://archive.ics.uci.edu/ml/datasets/energy+efficiency)
 	* [concrete](https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/)
 	* [wine](https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/)
-	* [kin8nm](https://www.openml.org/d/189)
 	* [power](https://archive.ics.uci.edu/ml/datasets/combined+cycle+power+plant)
 	* [naval](http://archive.ics.uci.edu/ml/datasets/condition+based+maintenance+of+naval+propulsion+plants)
 	* [protein](https://archive.ics.uci.edu/ml/datasets/Physicochemical+Properties+of+Protein+Tertiary+Structure)
 	* [msd](https://archive.ics.uci.edu/ml/datasets/YearPredictionMSD)
 	* [higgs](https://archive.ics.uci.edu/ml/datasets/HIGGS) (pre-download and extract to pgbm/datasets)
+
+We use the following datasets from the openml archive:
+	* [kin8nm](https://www.openml.org/d/189)
 
 We use the following datasets from Kaggle:
 	* [m5](https://www.kaggle.com/c/m5-forecasting-accuracy/data) (pre-download and extract to pgbm/datasets/m5)
