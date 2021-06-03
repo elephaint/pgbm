@@ -15,7 +15,12 @@
 
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
-   Olivier Sprangers, Sebastian Schelter, Maarten de Rijke. Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression (https://linktopaper). Accepted for publication at SIGKDD '21.
+   Olivier Sprangers, Sebastian Schelter, Maarten de Rijke. 
+   Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression.
+   (https://linktopaper). 
+   Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and
+   Data Mining (KDD ’21), August 14–18, 2021, Virtual Event, Singapore.
+   https://doi.org/10.1145/3447548.3467278
 
 """
 #%% Import packages

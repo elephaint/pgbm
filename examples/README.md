@@ -8,7 +8,7 @@ This folder contains examples of PGBM. The examples illustrate the following:
 * Example 8: How to use autodifferentiation for loss functions where no analytical gradient or hessian is provided.
 * Example 9: How to plot the feature importance of a learner after training.
 * Example 10: How we employed PGBM to forecast Covid-19 daily hospital admissions in the Netherlands.
-* Example 11: How to save and load a PGBM model.
+* Example 11: How to save and load a PGBM model. Train and predict using different devices (CPU or GPU) and/or different backends (PyTorch or Numba).
 * Example 12: How to use PGBM when using Numba as backend.
 
 Note: to use the `higgs` dataset in any of the examples, download [here](https://archive.ics.uci.edu/ml/datasets/HIGGS), unpack and save `HIGGS.csv` to your local working directory.
@@ -37,12 +37,12 @@ PGBM employs the following set of hyperparameters (listed in alphabetical order)
 
 # Function reference #
 PGBM is a lightweight package. The following functions will be needed the most:
-* `train(train_set, objective, metric, params=None, valid_set=None, levels=None)`. Train a PGBM model for a given objective and evaluate on a given metric. If no `valid_set` is provided, the learner will train `n_estimators` as set in the `params` dict. For examples of what the objective and metric should look like, see the examples above. For an example of how the `levels` parameter can be used to construct hierarchical forecasts, please see the [hierarchical time series example](https://github.com/elephaint/pgbm/tree/main/paper/experiments/02_hierarchical_time_series) from our paper or the [Covid-19 example](https://github.com/elephaint/pgbm/blob/main/examples/example10_covidhospitaladmissions.py). The Numba backend does not support this feature (i.e. set `levels=None` when defining a loss function when using the Numba backend).
+* `train(train_set, objective, metric, params=None, valid_set=None, levels=None)`. Train a PGBM model for a given objective and evaluate on a given metric. If no `valid_set` is provided, the learner will train `n_estimators` as set in the `params` dict. For examples of what the objective and metric should look like, see the examples above. For an example of how the `levels` parameter can be used to construct hierarchical forecasts, please see the [hierarchical time series example](https://github.com/elephaint/pgbm/tree/main/paper/experiments/02_hierarchical_time_series) from our paper.
 * `predict(X)`. Obtain point predictions for a sample set `X`.
 * `predict_dist(X, n_samples)`. Obtain `n_samples` probabilistic predictions for a sample set `X`. 
 * `crps_ensemble(yhat_dist, y)`. Calculate the CRPS score for a set of probabilistic predictions `yhat_dist` and ground truth `y`.
 * `save(filename)`. Save the state dict of a trained model to a file.
-* `load(filename, device=None)`. Load a model dictionary from a file to a device. The device should be a `torch.device`. Defaults to `cpu` when no value is provided. Not applicable when using Numba backend. 
+* `load(filename, device)`. Load a model dictionary from a file to a device. The device should be a `torch.device`. 
 * `permutation_importance(X, y=None, n_permutations=10, levels=None)`. Calculate the feature importance by performing permutations across each feature for `n_repetitions`. If `y` is given, this function will compute the percentage error for each permutation of the error metric per feature. Hence, the result will tell you how much your error metric will change if that feature is randomly permuted. If `y` is not supplied, this function will return the weighted mean absolute percentage error compared to the base predictions (i.e., the predictions without permuting the features). This function can be slow if there are many features and samples. In addition to this function, one can more easily inspect the feature importance of a PGBM model by using the attribute `.feature_importance`. This feature importance is based on the cumulative split gain computed on the training set during training. Note that permutation importance often provides better results. For a more detailed discussion, see [here](https://scikit-learn.org/stable/auto_examples/inspection/plot_permutation_importance.html#sphx-glr-auto-examples-inspection-plot-permutation-importance-py). See also Example 9, which illustrates both feature importance methods.
 
 # GPU training #

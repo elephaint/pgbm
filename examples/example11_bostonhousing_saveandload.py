@@ -43,7 +43,17 @@ train_data = (X_train, y_train)
 model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 model.save('model.pt')
-#%% Load model trained with PyTorch-CPU and predict with GPU
+#%% Load model trained with PyTorch-CPU and predict with Pytorch-CPU
+model_new = PGBM()
+model_new.load('model.pt')
+#% Point and probabilistic predictions
+yhat_point = model_new.predict(X_test)
+yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
+# Scoring
+crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
+# Print final scores
+print(f'CRPS PGBM: {crps:.2f}')
+#%% Load model trained with PyTorch-CPU and predict with Pytorch-GPU
 model_new = PGBM()
 model_new.load('model.pt', torch.device(0))
 #% Point and probabilistic predictions
@@ -53,7 +63,7 @@ yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
 crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Load model trained with PyTorch-CPU and predict with Numba backend. Note that no device needs to be entered.
+#%% Load model trained with PyTorch-CPU and predict with Numba backend.
 model_new = PGBM_numba()
 model_new.load('model.pt')
 #% Point and probabilistic predictions

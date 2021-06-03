@@ -13,6 +13,7 @@ Run `pip install pgbm` from a terminal within the virtual environment of your ch
 #### Verification ####
 * Download & run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both `gpu` and `cpu` as device to check if you are able to train on both GPU and CPU.
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
+* When using the Numba-backend, several functions need to be JIT-compiled. Hence, the first time you train a model using this backend it can take a bit longer.
 
 #### Dependencies ####
 The core package has the following dependencies: 
@@ -22,7 +23,7 @@ The core package has the following dependencies:
 * PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but contact the author if you find it still not working even after installing these dependencies. 
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
 
-We also provide PGBM based on a Numba backend for those users who do not want to use PyTorch. In that case, it is required to install Numba. The Numba backend does not support differentiable loss functions. For an example of using PGBM with the Numba backend, see the examples.
+We also provide PGBM based on a Numba backend for those users who do not want to use PyTorch. In that case, it is required to [install Numba](https://numba.readthedocs.io/en/stable/user/installing.html). The Numba backend does not support differentiable loss functions. For an example of using PGBM with the Numba backend, see the [examples](https://github.com/elephaint/pgbm/tree/main/examples). 
 
 ### Examples ###
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
