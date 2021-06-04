@@ -8,7 +8,7 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 * Auto-differentiation of custom loss functions.
 * Native GPU-acceleration.
 
-It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](arxiv-link) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
+It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 ### Installation ###
 Run `pip install pgbm` from a terminal within the virtual environment of your choice.
@@ -34,7 +34,7 @@ See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder 
 In case further support is required, [open an issue](https://github.com/elephaint/pgbm/issues).
 
 ### Reference ###
-[Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://linktopaper). Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining ([KDD ’21](https://www.kdd.org/kdd2021/)), August 14–18, 2021, Virtual Event, Singapore.
+[Olivier Sprangers](mailto:o.r.sprangers@uva.nl), Sebastian Schelter, Maarten de Rijke. [Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression](https://arxiv.org/abs/2106.01682). Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining ([KDD ’21](https://www.kdd.org/kdd2021/)), August 14–18, 2021, Virtual Event, Singapore.
 
 The experiments from our paper can be replicated by running the scripts in the [experiments](https://github.com/elephaint/pgbm/tree/main/paper/experiments) folder. Datasets are downloaded when needed in the experiments except for higgs and m5, which should be pre-downloaded and saved to the [datasets](https://github.com/elephaint/pgbm/tree/main/paper/datasets) folder (Higgs) and to datasets/m5 (m5).
 

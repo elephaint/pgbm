@@ -17,7 +17,7 @@
 
    Olivier Sprangers, Sebastian Schelter, Maarten de Rijke. 
    Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression.
-   (https://linktopaper). 
+   https://arxiv.org/abs/2106.01682 
    Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and
    Data Mining (KDD ’21), August 14–18, 2021, Virtual Event, Singapore.
    https://doi.org/10.1145/3447548.3467278
