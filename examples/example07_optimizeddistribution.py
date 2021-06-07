@@ -56,7 +56,7 @@ params = {'min_split_gain':0,
       'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
-n_samples = 1000
+n_forecasts = 1000
 #%% Loop
 # datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
 dataset = 'boston'
@@ -84,7 +84,7 @@ for i, tree_correlation in enumerate(tree_correlations):
         print(f'Correlation {i+1} / distribution {j+1}')
         model.params['tree_correlation'] = tree_correlation
         model.params['distribution'] = distribution
-        yhat_dist_pgbm = model.predict_dist(X_val, n_samples=n_samples)
+        yhat_dist_pgbm = model.predict_dist(X_val, n_forecasts=n_forecasts)
         crps_pgbm[i, j] = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_val).mean()
         df_val = df_val.append({'method':method, 'dataset':dataset, 'fold':0, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rho': tree_correlation, 'distribution': distribution, 'crps_validation': crps_pgbm[i, j]}, ignore_index=True)   
 #%% Train model on full dataset and evaluate base case + optimal choice of distribution and correlation hyperparameter
@@ -96,14 +96,14 @@ model.train(train_data, objective=objective, metric=rmseloss_metric, params=para
 #% Probabilistic predictions base case
 model.params['tree_correlation'] = 0.03
 model.params['distribution'] = 'normal'
-yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
+yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_old = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()
 # Optimal case
 df_val_opt = df_val.loc[df_val.groupby(['dataset'])['crps_validation'].idxmin()]
 model.params['tree_correlation'] = df_val_opt[df_val_opt.dataset == dataset]['rho'].item()
 model.params['distribution'] = df_val_opt[df_val_opt.dataset == dataset]['distribution'].item()
-yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
+yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_new = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()  
 # Print scores

@@ -62,7 +62,7 @@ params = {'min_split_gain':0,
       'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
-n_samples = 1000
+n_forecasts = 1000
 #%% Loop
 datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
 base_estimators = 2000
@@ -96,7 +96,7 @@ for i, dataset in enumerate(datasets):
     crps_pgbm = np.zeros(len(tree_correlations))
     for i, tree_correlation in enumerate(tree_correlations):
         model.params['tree_correlation'] = tree_correlation
-        yhat_dist_pgbm = model.predict_dist(valid_data[0], n_samples=n_samples)
+        yhat_dist_pgbm = model.predict_dist(valid_data[0], n_forecasts=n_forecasts)
         crps_pgbm[i] = ps.crps_ensemble(y_val, yhat_dist_pgbm.cpu().T).mean()
         df_val = df_val.append({'method':method, 'dataset':dataset, 'fold':0, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rho': tree_correlation, 'crps_validation': crps_pgbm[i]}, ignore_index=True)
     # Set iterations to best iteration
@@ -109,7 +109,7 @@ for i, dataset in enumerate(datasets):
     print('Prediction...')
     yhat_point_pgbm = model.predict(X_test)   
     model.params['tree_correlation'] = tree_correlations[np.argmin(crps_pgbm)]
-    yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
+    yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
     # Scoring
     rmse_pgbm_new = rmseloss_metric(yhat_point_pgbm.cpu(), y_test).numpy()
     crps_pgbm_new = ps.crps_ensemble(y_test, yhat_dist_pgbm.cpu().T).mean()

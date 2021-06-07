@@ -57,9 +57,10 @@ params = {'min_split_gain':0,
       'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
-n_samples = 1000
+n_forecasts = 1000
 #%% Loop
 datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
+# datasets = ['boston']
 base_estimators = 2000
 df = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rmse_test','crps_test','validation_time'])
 torchdata = lambda x : torch.from_numpy(x).float()
@@ -100,7 +101,7 @@ for i, dataset in enumerate(datasets):
         print('Prediction...')
         yhat_point = model.predict(X_test)
         model.params['tree_correlation'] = np.log10(len(X_train)) / 100
-        yhat_dist = model.predict_dist(X_test, n_samples=n_samples)
+        yhat_dist = model.predict_dist(X_test, n_forecasts=n_forecasts)
         # Scoring
         rmse = rmseloss_metric(yhat_point.cpu(), y_test).numpy()
         crps = ps.crps_ensemble(y_test, yhat_dist.cpu().T).mean()

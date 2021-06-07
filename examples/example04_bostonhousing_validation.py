@@ -56,7 +56,7 @@ params = {'min_split_gain':0,
       'derivatives':'exact',
       'distribution':'normal'}
 
-n_samples = 1000
+n_forecasts = 1000
 n_splits = 2
 base_estimators = 2000
 #%% Validation loop
@@ -84,7 +84,7 @@ for i in range(n_splits):
     #% Predictions
     print('PGBM Prediction...')
     yhat_point = model.predict(X_test)
-    yhat_dist = model.predict_dist(X_test, n_samples=n_samples)
+    yhat_dist = model.predict_dist(X_test, n_forecasts=n_forecasts)
     # Scoring
     rmse[i] = model.metric(yhat_point.cpu(), y_test)
     crps[i] = model.crps_ensemble(yhat_dist.cpu(), y_test).mean()           

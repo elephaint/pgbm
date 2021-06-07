@@ -48,7 +48,7 @@ model_new = PGBM()
 model_new.load('model.pt')
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)
-yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
+yhat_dist = model_new.predict_dist(X_test)
 # Scoring
 crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
@@ -58,7 +58,7 @@ model_new = PGBM()
 model_new.load('model.pt', torch.device(0))
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)
-yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
+yhat_dist = model_new.predict_dist(X_test)
 # Scoring
 crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
@@ -68,7 +68,7 @@ model_new = PGBM_numba()
 model_new.load('model.pt')
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)
-yhat_dist = model_new.predict_dist(X_test, n_samples=1000)
+yhat_dist = model_new.predict_dist(X_test)
 # Scoring
 crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores

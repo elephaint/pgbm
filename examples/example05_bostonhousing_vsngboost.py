@@ -59,7 +59,7 @@ params = {'min_split_gain':0,
       'distribution':'normal'}
 #%% Train pgbm vs NGBoost
 n_splits = 2
-n_samples = 1000
+n_forecasts = 1000
 base_estimators = 2000
 rmse, crps = np.zeros((n_splits, 2)), np.zeros((n_splits, 2))
 #%% Loop
@@ -90,7 +90,7 @@ for i in range(n_splits):
     #% Predictions
     print('PGBM Prediction...')
     yhat_point_pgbm = model.predict(X_test)
-    yhat_dist_pgbm  = model.predict_dist(X_test, n_samples=n_samples)
+    yhat_dist_pgbm  = model.predict_dist(X_test, n_forecasts=n_forecasts)
     # Scoring
     rmse[i, 0] = model.metric(yhat_point_pgbm.cpu(), y_test).numpy()
     crps[i, 0] = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()
@@ -108,7 +108,7 @@ for i in range(n_splits):
     print('NGB Prediction...')    
     yhat_point_ngb = ngb.predict(X_test)
     ngb_dist = ngb.pred_dist(X_test)
-    yhat_dist_ngb = ngb_dist.sample(n_samples)
+    yhat_dist_ngb = ngb_dist.sample(n_forecasts)
     # Scoring NGB
     rmse[i, 1] = rmseloss_metric(torch.from_numpy(yhat_point_ngb), y_test).numpy()
     crps[i, 1] = ps.crps_ensemble(y_test, yhat_dist_ngb.T).mean()        

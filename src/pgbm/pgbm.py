@@ -29,7 +29,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.parallel as parallel
 import numpy as np
-import pandas as pd
 from torch.autograd import grad
 from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, LogNormal, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
 from torch.utils.cpp_extension import load
@@ -140,7 +139,7 @@ class PGBM(nn.Module):
         n_samples = X.shape[1]
         sample_features = torch.randperm(n_features, device=X.device, dtype=torch.int64)[:self.feature_fraction]
         Xe = X[sample_features]
-        drange = torch.arange(self.params['max_bin']);
+        drange = torch.arange(self.params['max_bin'], device=X.device);
         # Create tree
         while (self.leaf_idx < self.params['max_leaves']):
             split_node = self.train_nodes == node
@@ -203,26 +202,13 @@ class PGBM(nn.Module):
                 break
             else:
                 node = next_nodes.min()
-                              
-    def _predict_leaf(self, mu_x, var_x, leaves_idx, leaves_mu, leaves_var, node):
-        leaf_idx = leaves_idx == node
-        lr = self.params['learning_rate']
-        corr = self.params['tree_correlation']
-        mu_y = leaves_mu[leaf_idx]
-        mu_y = lr * mu_y
-        mu = mu_x - mu_y
-        if self.dist == True:
-            var_y = leaves_var[leaf_idx]
-            variance = var_x + lr * lr * var_y - 2 * lr * corr * var_x.sqrt() * var_y.sqrt()
-        else:
-            variance = var_x
-        return mu, variance        
-    
+                                     
     def _predict_tree(self, X, mu, variance, estimator):
+        # Get prediction for a single tree
         predictions = torch.zeros(X.shape[1], device=X.device, dtype=torch.int)
         nodes_predict = torch.ones(X.shape[1], device=X.device, dtype=torch.int)
-        mu_total = torch.zeros_like(mu)
-        variance_total = torch.zeros_like(variance)
+        lr = self.params['learning_rate']
+        corr = self.params['tree_correlation']
         leaves_idx = self.leaves_idx[estimator]
         leaves_mu = self.leaves_mu[estimator]
         leaves_var = self.leaves_var[estimator]
@@ -231,43 +217,107 @@ class PGBM(nn.Module):
         nodes_split_bin = self.nodes_split_bin[estimator]
         node = torch.ones(1, device = X.device, dtype=torch.int64)
         # Capture edge case where first node is a leaf (i.e. there is no decision tree, only a single leaf)
-        if torch.any(torch.eq(node, leaves_idx)):
-            mu_current, variance_current = self._predict_leaf(mu, variance, leaves_idx, leaves_mu, leaves_var, node)
+        leaf_idx = torch.eq(node, leaves_idx)
+        if torch.any(leaf_idx):
+            var_y = leaves_var[leaf_idx]
+            mu += -lr * leaves_mu[leaf_idx]
+            variance += lr * lr * var_y - 2 * lr * corr * variance.sqrt() * var_y.sqrt()
             predictions += 1
-            mu_total += mu_current
-            variance_total += variance_current
         else: 
             # Loop until every sample has a prediction (this allows earlier stopping than looping over all possible tree paths)
             while predictions.sum() < len(predictions):
                 # Choose next node (based on breadth-first)
-                node = nodes_predict[(nodes_predict >= node) & (predictions == 0)].min()
+                condition = (nodes_predict >= node) * (predictions == 0)
+                node = nodes_predict[condition].min()
                 # Select current node information
                 split_node = nodes_predict == node
-                current_feature = nodes_split_feature[nodes_idx == node]
-                current_bin = nodes_split_bin[nodes_idx == node]
+                node_idx = (nodes_idx == node)
+                current_feature = (nodes_split_feature * node_idx).sum()
+                current_bin = (nodes_split_bin * node_idx).sum()
                 # Split node
                 split_left = (X[current_feature] > current_bin).squeeze()
                 split_right = ~split_left * split_node
                 split_left = split_left * split_node
-                # Assign information
-                # Get prediction left if it exists
-                if torch.any(torch.eq(2 * node, leaves_idx)):
-                    mu_current, variance_current = self._predict_leaf(mu[split_left], variance[split_left], leaves_idx, leaves_mu, leaves_var, 2 * node)
-                    predictions[split_left] = 1
-                    mu_total[split_left] = mu_current
-                    variance_total[split_left] = variance_current
+                # Check if children are leaves
+                leaf_idx_left = torch.eq(2 * node, leaves_idx)
+                leaf_idx_right = torch.eq(2 * node + 1, leaves_idx)
+                # Update mu and variance with left leaf prediction
+                if torch.any(leaf_idx_left):
+                    mu += -lr * split_left * leaves_mu[leaf_idx_left]
+                    var_left = split_left * leaves_var[leaf_idx_left]
+                    variance += lr**2 * var_left - 2 * lr * corr * variance.sqrt() * var_left.sqrt()
+                    predictions += split_left
                 else:
-                    nodes_predict[split_left] = 2 * node
-                # Get prediction right if it exists
-                if torch.any(torch.eq(2 * node + 1, leaves_idx)):
-                    mu_current, variance_current = self._predict_leaf(mu[split_right], variance[split_right], leaves_idx, leaves_mu, leaves_var, 2 * node + 1)
-                    predictions[split_right] = 1
-                    mu_total[split_right] = mu_current
-                    variance_total[split_right] = variance_current
+                    nodes_predict += split_left * node
+                # Update mu and variance with right leaf prediction
+                if torch.any(leaf_idx_right):
+                    mu += -lr * split_right * leaves_mu[leaf_idx_right]
+                    var_right = split_right * leaves_var[leaf_idx_right]
+                    variance += lr**2 * var_right - 2 * lr * corr * variance.sqrt() * var_right.sqrt()
+                    predictions += split_right
                 else:
-                    nodes_predict[split_right] = 2 * node + 1
-                   
-        return mu_total, variance_total      
+                    nodes_predict += split_right * (node + 1)
+                           
+        return mu, variance      
+
+    def _predict_forest(self, X):
+        # Parallel prediction of a tree ensemble
+        predictions = torch.zeros((X.shape[1], self.best_iteration), device=X.device, dtype=torch.int64)
+        nodes_predict = torch.ones_like(predictions)
+        mu = torch.zeros((X.shape[1], self.best_iteration), device=X.device, dtype=torch.float32)
+        variance = torch.zeros_like(mu)
+        node = nodes_predict.min()
+        # Capture edge case where first node is a leaf (i.e. there is no decision tree, only a single leaf)
+        leaf_idx = torch.eq(node, self.leaves_idx)
+        index = torch.any(leaf_idx, dim=1)
+        mu[:, index] = self.leaves_mu[leaf_idx]
+        variance[:, index] = self.leaves_var[leaf_idx]
+        predictions[:, index] = 1
+        # Loop until every sample has a prediction from every tree (this allows earlier stopping than looping over all possible tree paths)
+        while predictions.sum() < predictions.nelement():
+            # Choose next node (based on breadth-first)
+            condition = (nodes_predict >= node) * (predictions == 0)
+            node = nodes_predict[condition].min()
+            # Select current node information
+            split_node = nodes_predict == node
+            node_idx = (self.nodes_idx == node)
+            current_features = (self.nodes_split_feature * node_idx).sum(1)
+            current_bins = (self.nodes_split_bin * node_idx).sum(1, keepdim=True)
+            # Split node
+            split_left = (X[current_features] > current_bins).T
+            split_right = ~split_left * split_node
+            split_left = split_left * split_node
+            # Check if children are leaves
+            leaf_idx_left = torch.eq(2 * node, self.leaves_idx)
+            leaf_idx_right = torch.eq(2 * node + 1, self.leaves_idx)
+            # Update mu and variance with left leaf prediction
+            mu += split_left * (self.leaves_mu * leaf_idx_left).sum(1)
+            variance += split_left * (self.leaves_var * leaf_idx_left).sum(1)
+            predictions += split_left * leaf_idx_left.sum(1)
+            nodes_predict += (1 - leaf_idx_left.sum(1)) * split_left * node
+            # Update mu and variance with right leaf prediction
+            mu += split_right * (self.leaves_mu * leaf_idx_right).sum(1)
+            variance += split_right * (self.leaves_var * leaf_idx_right).sum(1)
+            predictions += split_right * leaf_idx_right.sum(1)
+            nodes_predict += ( (1  - leaf_idx_right.sum(1)) * split_right * (node + 1))
+
+        # Each prediction only for the amount of learning rate in the ensemble
+        lr = self.params['learning_rate']
+        mu = (-lr * mu).sum(1)
+        if self.dist:
+            corr = self.params['tree_correlation']
+            variance = variance.T
+            variance_total = torch.zeros(X.shape[1], dtype=torch.float32, device=X.device)
+            variance_total += lr**2 * variance[0]
+            # I have not figured out how to parallelize the variance estimate calculation in the ensemble, so we iterate over 
+            # the variance per estimator
+            for estimator in range(1, self.best_iteration):
+                variance_total += lr**2 * variance[estimator] - 2 * lr * corr * variance_total.sqrt() * variance[estimator].sqrt()       
+            variance = variance_total
+        else:
+            variance = variance[:, 0]
+    
+        return mu, variance  
     
     def _create_X_splits(self, X):
         # Pre-compute split decisions for Xtrain
@@ -284,14 +334,37 @@ class PGBM(nn.Module):
     def _convert_array(self, array):
         if type(array) == np.ndarray:
             array = torch.from_numpy(array).float()
-        elif type(array) == pd.core.frame.DataFrame or type(array) == pd.core.series.Series:
-            array = torch.from_numpy(array.values).float()
         elif type(array) == torch.Tensor:
             array = array.float()
         
         return array.to(self.output_device)
     
     def train(self, train_set, objective, metric, params=None, valid_set=None, levels_train=None, levels_valid=None):
+        """
+        Train a PGBM model.
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+        
+        Args:
+            train_set (tuple of ([n_trainig_samples x n_features], [n_training_samples])): sample set (X, y) on which to train the PGBM model, 
+                where X contains the features of the samples and y is the ground truth.
+            objective (function): The objective function is the loss function that will be optimized during the gradient boosting process.
+                The function should consume a torch vector of predictions yhat and ground truth values y and output the gradient and 
+                hessian with respect to yhat of the loss function. For more complicated loss functions, it is possible to add a 
+                levels variable, but this can be set to None in case it is not required.
+            metric (function): The metric function is the function that generates the error metric. The evaluation 
+                metric should consume a torch vector of predictions yhat and ground truth values y, and output a scalar loss. For 
+                more complicated evaluation metrics, it is possible to add a levels variable, but this can be set to None in case 
+                it is not required.
+            params (dictionary): Dictionary containing the learning parameters of a PGBM model. 
+            valid_set (tuple of ([n_validation_samples x n_features], [n_validation_samples])): sample set (X, y) on which to validate 
+                the PGBM model, where X contains the features of the samples and y is the ground truth.
+            levels_train (dictionary of arrays): if the objective requires a levels variable, it can supplied here.
+            levels_valid (dictionary of arrays): if the metric requires a levels variable, it can supplied here.
+        """
         # Create parameters
         if params is None:
             params = {}
@@ -325,7 +398,7 @@ class PGBM(nn.Module):
         self.leaves_var = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.float32, device = self.output_device)
         self.feature_importance = torch.zeros(self.n_features, dtype=torch.float32, device=self.output_device)
         self.dist = False
-        self.n_samples_dist = 1
+        self.n_forecasts_dist = 1
         self.best_iteration = 0
         # Pre-compute split decisions for X_train
         X_train_splits = self._create_X_splits(X_train)
@@ -375,11 +448,35 @@ class PGBM(nn.Module):
                     print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}")
                 self.best_iteration = estimator
                 self.best_score = 0
+            
+        # Truncate tree arrays
+        self.leaves_idx             = self.leaves_idx[:self.best_iteration]
+        self.leaves_mu              = self.leaves_mu[:self.best_iteration]
+        self.leaves_var             = self.leaves_var[:self.best_iteration]
+        self.nodes_idx              = self.nodes_idx[:self.best_iteration]
+        self.nodes_split_bin        = self.nodes_split_bin[:self.best_iteration]
+        self.nodes_split_feature    = self.nodes_split_feature[:self.best_iteration]
                        
-    def predict(self, X):
+    def predict(self, X, parallel=True):
+        """
+        Generate point estimates/forecasts for a given sample set X
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> yhat_test = model.predict(X_test)
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to create the estimates/forecasts.
+            parallel (boolean): whether to generate the estimates in parallel or using a serial computation.
+                Use serial if you experience RAM or GPU out-of-memory errors when using this function. Otherwise,
+                parallel is recommended as it is much faster.
+        """
         X = self._convert_array(X)
         self.dist = False
-        self.n_samples_dist = 1
+        self.n_forecasts_dist = 1
         yhat0 = self.yhat_0.repeat(X.shape[0])
         mu = torch.zeros(X.shape[0], device=X.device, dtype=torch.float32)
         variance = torch.zeros(X.shape[0], device=X.device, dtype=torch.float32)
@@ -387,16 +484,36 @@ class PGBM(nn.Module):
         X_test_splits = self._create_X_splits(X)
         
         # Predict samples
-        for estimator in range(self.best_iteration):
-            self.estimator = estimator
-            mu, variance = self._predict_tree(X_test_splits, mu, variance, estimator)
+        if parallel:
+            mu, _ = self._predict_forest(X_test_splits)            
+        else:
+            for estimator in range(self.best_iteration):
+                mu, _ = self._predict_tree(X_test_splits, mu, variance, estimator)
 
         return yhat0 + mu
        
-    def predict_dist(self, X, n_samples):
+    def predict_dist(self, X, n_forecasts=100, parallel=True):
+        """
+        Generate probabilistic estimates/forecasts for a given sample set X
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> yhat_test_dist = model.predict_dist(X_test)
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to create 
+            the estimates/forecasts.
+            n_forecasts (integer): number of estimates/forecasts to create.
+            parallel (boolean): whether to generate the estimates in parallel or using a serial computation.
+                Use serial if you experience RAM or GPU out-of-memory errors when using this function. Otherwise,
+                parallel is recommended as it is much faster.
+        """
         X = self._convert_array(X)
         self.dist = True
-        self.n_samples_dist = n_samples
+        self.n_forecasts_dist = n_forecasts
         yhat0 = self.yhat_0.repeat(X.shape[0])
         mu = torch.zeros(X.shape[0], device=X.device, dtype=torch.float32)
         variance = torch.zeros(X.shape[0], device=X.device, dtype=torch.float32)
@@ -404,48 +521,50 @@ class PGBM(nn.Module):
         X_test_splits = self._create_X_splits(X)
         
         # Compute aggregate mean and variance
-        for estimator in range(self.best_iteration):
-            self.estimator = estimator
-            mu, variance = self._predict_tree(X_test_splits, mu, variance, estimator)
+        if parallel:
+            mu, variance = self._predict_forest(X_test_splits)
+        else:
+            for estimator in range(self.best_iteration):
+                mu, variance = self._predict_tree(X_test_splits, mu, variance, estimator)
         
         # Sample from distribution
         mu += yhat0
         if self.params['distribution'] == 'normal':
             loc = mu
             scale = torch.nan_to_num(variance.sqrt(), 1e-9)
-            yhat = Normal(loc, scale).rsample([n_samples])
+            yhat = Normal(loc, scale).rsample([n_forecasts])
         elif self.params['distribution'] == 'studentt':
             v = 3
             loc = mu
             factor = v / (v - 2)
             scale = torch.nan_to_num( (variance / factor).sqrt(), 1e-9)
-            yhat = StudentT(v, loc, scale).rsample([n_samples])
+            yhat = StudentT(v, loc, scale).rsample([n_forecasts])
         elif self.params['distribution'] == 'laplace':
             loc = mu
             scale = torch.nan_to_num( (0.5 * variance).sqrt(), 1e-9)
-            yhat = Laplace(loc, scale).rsample([n_samples])
+            yhat = Laplace(loc, scale).rsample([n_forecasts])
         elif self.params['distribution'] == 'logistic':
             loc = mu
             scale = torch.nan_to_num( ((3 * variance) / np.pi**2).sqrt(), 1e-9)
             base_dist = Uniform(torch.zeros(X.shape[0], device=X.device), torch.ones(X.shape[0], device=X.device))
-            yhat = TransformedDistribution(base_dist, [SigmoidTransform().inv, AffineTransform(loc, scale)]).rsample([n_samples])
+            yhat = TransformedDistribution(base_dist, [SigmoidTransform().inv, AffineTransform(loc, scale)]).rsample([n_forecasts])
         elif self.params['distribution'] == 'lognormal':
             mu = mu.clamp(1e-9)
             variance = torch.nan_to_num(variance, 1e-9).clamp(1e-9)
             scale = ((variance + mu**2) / mu**2).log().clamp(1e-9)
             loc = (mu.log() - 0.5 * scale).clamp(1e-9)
-            yhat = LogNormal(loc, scale.sqrt()).rsample([n_samples])
+            yhat = LogNormal(loc, scale.sqrt()).rsample([n_forecasts])
         elif self.params['distribution'] == 'gamma':
             variance = torch.nan_to_num(variance, 1e-9)
             mu = torch.nan_to_num(mu, 1e-9)
             rate = (mu.clamp(1e-9) / variance.clamp(1e-9))
             shape = mu.clamp(1e-9) * rate
-            yhat = Gamma(shape, rate).rsample([n_samples])
+            yhat = Gamma(shape, rate).rsample([n_forecasts])
         elif self.params['distribution'] == 'gumbel':
             variance = torch.nan_to_num(variance, 1e-9)
             scale = (6 * variance / np.pi**2).sqrt().clamp(1e-9)
             loc = mu - scale * np.euler_gamma
-            yhat = Gumbel(loc, scale).rsample([n_samples]) 
+            yhat = Gumbel(loc, scale).rsample([n_forecasts]) 
         elif self.params['distribution'] == 'weibull':
             variance = torch.nan_to_num(variance, 1e-9)
             # This is a little bit hacky..
@@ -485,7 +604,7 @@ class PGBM(nn.Module):
             k = k.clamp(self.epsilon)
 
             # Sample from fitted Weibull
-            yhat = Weibull(scale, k).rsample([n_samples]) 
+            yhat = Weibull(scale, k).rsample([n_forecasts]) 
 
         elif self.params['distribution'] == 'negativebinomial':
             loc = mu.clamp(1e-9)
@@ -494,17 +613,36 @@ class PGBM(nn.Module):
             scale = torch.maximum(loc + eps, variance).clamp(1e-9)
             probs = (1 - (loc / scale)).clamp(0, 0.99999)
             counts = (-loc**2 / (loc - scale)).clamp(eps)
-            yhat = NegativeBinomial(counts, probs).sample([n_samples])
+            yhat = NegativeBinomial(counts, probs).sample([n_forecasts])
         elif self.params['distribution'] == 'poisson':
-            yhat = Poisson(mu.clamp(1e-9)).sample([n_samples])
+            yhat = Poisson(mu.clamp(1e-9)).sample([n_forecasts])
         else:
             print('Distribution not (yet) supported')
           
         
         return yhat
     
-    # Calculates the empirical CRPS for a set of forecasts for a number of samples
     def crps_ensemble(self, yhat_dist, y):
+        """
+        Calculate the empirical Continuously Ranked Probability Score for a set 
+        of forecasts for a number of samples.
+        
+        Based on `crps_ensemble` from `properscoring`
+        https://pypi.org/project/properscoring/
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> yhat_test_dist = model.predict_dist(X_test)
+            >> crps = model.crps_ensemble(yhat_test_dist, y_test)
+        
+        Args:
+            yhat_dist (array of [n_forecasts x n_samples]): array containing forecasts 
+            for each sample.
+            y (array of [n_samples]): ground truth value of each sample.
+        """
         y = self._convert_array(y)
         yhat_dist = self._convert_array(yhat_dist)
         n_forecasts = yhat_dist.shape[0]
@@ -532,6 +670,19 @@ class PGBM(nn.Module):
         return crps       
     
     def save(self, filename):
+        """
+        Save a PGBM model to a file. The model parameters are saved as numpy arrays and dictionaries. 
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> model.save('model.pt')
+        
+        Args:
+            filename (string): name and location to save the model to
+        """
         params = self.params.copy()
         params['learning_rate'] = params['learning_rate'].cpu().numpy()
         params['tree_correlation'] = params['tree_correlation'].cpu().numpy()
@@ -555,30 +706,70 @@ class PGBM(nn.Module):
             pickle.dump(state_dict, handle)   
     
     def load(self, filename, device=None):
+        """
+        Load a PGBM model from a file to a device. 
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.load('model.pt') # Load to default device (cpu)
+            >> model.load('model.pt', device=torch.device(0)) # Load to default GPU at index 0
+        
+        Args:
+            filename (string): location of model file.
+            device (torch.device): device to which to load the model. Default = 'cpu'.
+        """
         if device is None:
             device = torch.device('cpu')
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
         
-        self.nodes_idx = torch.from_numpy(state_dict['nodes_idx']).to(device)
-        self.nodes_split_feature  = torch.from_numpy(state_dict['nodes_split_feature']).to(device)
-        self.nodes_split_bin  = torch.from_numpy(state_dict['nodes_split_bin']).to(device)
-        self.leaves_idx  = torch.from_numpy(state_dict['leaves_idx']).to(device)
-        self.leaves_mu  = torch.from_numpy(state_dict['leaves_mu']).to(device)
-        self.leaves_var  = torch.from_numpy(state_dict['leaves_var']).to(device)
-        self.feature_importance  = torch.from_numpy(state_dict['feature_importance']).to(device)
+        torch_float = lambda x: torch.from_numpy(x).float().to(device)
+        torch_long = lambda x: torch.from_numpy(x).long().to(device)
+        
+        self.nodes_idx = torch_long(state_dict['nodes_idx'])
+        self.nodes_split_feature  = torch_long(state_dict['nodes_split_feature'])
+        self.nodes_split_bin  = torch_long(state_dict['nodes_split_bin'])
+        self.leaves_idx  = torch_long(state_dict['leaves_idx'])
+        self.leaves_mu  = torch_float(state_dict['leaves_mu'])
+        self.leaves_var  = torch_float(state_dict['leaves_var'])
+        self.feature_importance  = torch_float(state_dict['feature_importance'])
         self.best_iteration  = state_dict['best_iteration']
         self.params  = state_dict['params']
-        self.params['learning_rate'] = torch.from_numpy(self.params['learning_rate']).to(device)
-        self.params['tree_correlation'] = torch.from_numpy(self.params['tree_correlation']).to(device)
-        self.params['lambda'] = torch.from_numpy(self.params['lambda']).to(device)
-        self.params['min_split_gain'] = torch.from_numpy(self.params['min_split_gain']).to(device)
-        self.params['min_data_in_leaf'] = torch.from_numpy(self.params['min_data_in_leaf']).to(device)
-        self.yhat_0  = torch.from_numpy(state_dict['yhat0']).to(device)
-        self.bins = torch.from_numpy(state_dict['bins']).to(device)
+        self.params['learning_rate'] = torch_float(self.params['learning_rate'])
+        self.params['tree_correlation'] = torch_float(self.params['tree_correlation'])
+        self.params['lambda'] = torch_float(self.params['lambda'])
+        self.params['min_split_gain'] = torch_float(self.params['min_split_gain'])
+        self.params['min_data_in_leaf'] = torch_float(self.params['min_data_in_leaf'])
+        self.yhat_0  = torch_float(state_dict['yhat0'])
+        self.bins = torch_float(state_dict['bins'])
         self.output_device = device
         
     def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
+        """
+        Calculate feature importance of a PGBM model for a sample set X by randomly 
+        permuting each feature. 
+        
+        This function can be executed in a supervised and unsupervised manner, depending
+        on whether y is given. If y is given, the output of this function is the change
+        in error metric when randomly permuting a feature. If y is not given, the output
+        is the weighted average change in prediction when randomly permuting a feature. 
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> perm_importance_supervised = model.permutation_importance(X_test, y_test)  # Supervised
+            >> perm_importance_unsupervised = model.permutation_importance(X_test)  # Unsupervised
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to determine the feature importance.
+            y (array of [n_samples]): ground truth for sample set X.
+            n_permutations (integer): number of random permutations to perform for each feature.
+            levels (dict of arrays):only applicable when using a levels argument in the error metric.
+        """
         X = self._convert_array(X)
         n_samples = X.shape[0]
         n_features = X.shape[1]

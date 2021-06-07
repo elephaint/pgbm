@@ -49,7 +49,7 @@ model = PGBM()
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
 #% Point and probabilistic predictions
 yhat_point = model.predict(X_test)
-yhat_dist = model.predict_dist(X_test, n_samples=1000)
+yhat_dist = model.predict_dist(X_test)
 # Scoring
 rmse = model.metric(yhat_point.cpu(), y_test)
 crps = model.crps_ensemble(yhat_dist, y_test).mean()    

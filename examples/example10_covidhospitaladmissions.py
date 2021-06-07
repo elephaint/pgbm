@@ -218,7 +218,7 @@ params = {'min_split_gain':0,
       'distribution':'poisson'} 
 
 # Number of samples for distribution
-n_samples = 100
+n_forecasts = 100
 #%% Validation loop: validate for n_validation_weeks, and across a choice of distributions & tree correlations
 df_val_result = pd.DataFrame()
 tree_correlations = np.arange(-30, 30, step=2) * 0.01
@@ -253,7 +253,7 @@ for fold, date in enumerate(validation_dates):
             print(f'Fold {fold} / Tree correlation {i} / Distribution {j}')
             model.params['tree_correlation'] = tree_correlation
             model.params['distribution'] = distribution
-            yhat_dist = model.predict_dist(X_val, n_samples=n_samples)
+            yhat_dist = model.predict_dist(X_val, n_forecasts=n_forecasts)
             yhat_dist = yhat_dist.clamp(0, 1e9)  # clipping to avoid negative predictions of symmetric distributions
             crps = crps_levels(yhat_dist, torch.from_numpy(y_val.values).float().to(torch_device), levels_val)
             df_val_result = df_val_result.append({'fold': fold, 'tree_correlation': tree_correlation, 'distribution': distribution, 'best_iteration': model.best_iteration, 'best_score': model.best_score.cpu().numpy().item(), 'crps_municipality': crps[0].cpu().numpy().item(), 'crps_security_region': crps[1].cpu().numpy().item(), 'crps_roaz_region': crps[2].cpu().numpy().item(), 'crps_national': crps[3].cpu().numpy().item()}, ignore_index=True)
@@ -292,11 +292,11 @@ model = PGBM()
 model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)
 # Predict
 yhat_test = np.clip(model.predict(X_test).cpu().numpy(), 0, 1e9)
-yhat_test_dist = model.predict_dist(X_test, n_samples=n_samples)
+yhat_test_dist = model.predict_dist(X_test, n_forecasts=n_forecasts)
 yhat_test_dist = np.clip(yhat_test_dist.cpu().numpy(), 0, 1e9)
 # Add results to df
 df_pred_test = pd.DataFrame(index=y_test.index, data=yhat_test, columns=['Hospital_admission_predicted'])
-col_names = ['sample_'+str(i) for i in range(n_samples)]
+col_names = ['sample_'+str(i) for i in range(n_forecasts)]
 df_pred_test_dist = pd.DataFrame(index=y_test.index, data=yhat_test_dist.T, columns=col_names)
 #%% Store predictions (only last date)
 df_result = df[['Date_of_statistics', 'Municipality_name', 'Security_region_name', 'ROAZ_region']].copy()

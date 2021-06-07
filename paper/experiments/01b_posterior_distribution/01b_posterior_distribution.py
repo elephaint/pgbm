@@ -57,7 +57,7 @@ params = {'min_split_gain':0,
       'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
-n_samples = 1000
+n_forecasts = 1000
 #%% Loop
 datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
 # datasets = ['energy']
@@ -99,7 +99,7 @@ for i, dataset in enumerate(datasets):
             print(f'Correlation {i+1} / distribution {j+1}')
             model.params['tree_correlation'] = tree_correlation
             model.params['distribution'] = distribution
-            yhat_dist_pgbm = model.predict_dist(X_val, n_samples=n_samples)
+            yhat_dist_pgbm = model.predict_dist(X_val, n_forecasts=n_forecasts)
             crps_pgbm[i, j] = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_val).mean()
             df_val = df_val.append({'method':method, 'dataset':dataset, 'fold':0, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rho': tree_correlation, 'distribution': distribution, 'crps_validation': crps_pgbm[i, j]}, ignore_index=True)
 #%% Save file
@@ -136,7 +136,7 @@ for i, dataset in enumerate(datasets):
     yhat_point_pgbm = model.predict(X_test)
     model.params['tree_correlation'] = np.log10(len(X_train)) / 100
     model.params['distribution'] = 'normal'
-    yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
+    yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
     # Scoring
     rmse_pgbm_new = model.metric(yhat_point_pgbm.cpu(), y_test).numpy()
     crps_pgbm_new = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()
@@ -146,7 +146,7 @@ for i, dataset in enumerate(datasets):
     row, col = np.unravel_index(crps_pgbm.argmin(), crps_pgbm.shape)
     model.params['tree_correlation'] = df_val[df_val.dataset == dataset]['rho'].item()
     model.params['distribution'] = df_val[df_val.dataset == dataset]['distribution'].item()
-    yhat_dist_pgbm = model.predict_dist(X_test, n_samples=n_samples)
+    yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
     # Scoring
     rmse_pgbm_new = model.metric(yhat_point_pgbm.cpu(), y_test).numpy()
     crps_pgbm_new = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean() 

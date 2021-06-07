@@ -173,7 +173,7 @@ model.save('experiments/02_hierarchical_time_series/pgbm_wmse.model')
 start = time.perf_counter()
 yhat = model.predict(test_data[0])
 model.params['tree_correlation'] = np.log10(len(X_train)) / 100
-yhat_dist = model.predict_dist(test_data[0], n_samples=1000)
+yhat_dist = model.predict_dist(test_data[0], n_forecasts=1000)
 end = time.perf_counter()
 print(f'Prediction time: {end - start:.2f}s')
 #%% RMSE

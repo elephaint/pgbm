@@ -47,15 +47,14 @@ Finally, we train our model:
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 # Build tuples of torch datasets
-torchdata = lambda x : torch.from_numpy(x).float()
-train_data = (torchdata(X_train), torchdata(y_train))
-test_data = (torchdata(X_test), torchdata(y_test))
+train_data = (X_train, y_train)
+test_data = (X_test, y_test)
 # Train on set   
 model = pgbm.PGBM()
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 #% Point and probabilistic predictions
 yhat_point_pgbm = model.predict(test_data[0])
-yhat_dist_pgbm = model.predict_dist(test_data[0], n_samples=1000)
+yhat_dist_pgbm = model.predict_dist(test_data[0])
 # Scoring
 rmse = rmseloss_metric(yhat_point_pgbm, test_data[1])
 crps = pgbm.crps_ensemble(test_data[1], yhat_dist_pgbm).mean()    
@@ -99,8 +98,8 @@ PGBM employs the following set of hyperparameters (listed in alphabetical order)
 # Function reference #
 PGBM is a lightweight package. These are its core functions:
 * `train(train_set, objective, metric, params=None, valid_set=None, levels=None)`. Train a PGBM model for a given objective and evaluate on a given metric. If no `valid_set` is provided, the learner will train `n_estimators` as set in the `params` dict. For examples of what the objective and metric should look like, see the examples above. For an example of how the `levels` parameter can be used to construct hierarchical forecasts, please see the [hierarchical time series example](https://github.com/elephaint/pgbm/tree/main/paper/experiments/02_hierarchical_time_series) from our paper or the [Covid-19 example](https://github.com/elephaint/pgbm/blob/main/examples/example10_covidhospitaladmissions.py).
-* `predict(X)`. Obtain point predictions for a sample set `X`.
-* `predict_dist(X, n_samples)`. Obtain `n_samples` probabilistic predictions for a sample set `X`. 
+* `predict(X, parallel=True)`. Obtain point predictions for a sample set `X`. Use `parallel=False` if you experience out-of-memory errors (only applicable for PyTorch backend).
+* `predict_dist(X, n_forecasts=100, parallel=True)`. Obtain `n_forecasts` probabilistic predictions for a sample set `X`. Use `parallel=False` if you experience out-of-memory errors (only applicable for PyTorch backend).
 * `crps_ensemble(yhat_dist, y)`. Calculate the CRPS score for a set of probabilistic predictions `yhat_dist` and ground truth `y`.
 * `save(filename)`. Save the state dict of a trained model to a file.
 * `load(filename, device)`. Load a model dictionary from a file to a device. The device should be a `torch.device`. 

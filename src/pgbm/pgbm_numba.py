@@ -91,8 +91,8 @@ class PGBM_numba(object):
                 gradient_node = gradient[split_node]
                 hessian_node = hessian[split_node]
                 # Comput split_gain
-                G = gradient_node.sum()
-                H = hessian_node.sum()
+                G = np.sum(gradient_node)
+                H = np.sum(hessian_node)
                 if split_parallel == 'sample':
                     Gl, Hl = _split_decision_sample_parallel(X_node, gradient_node, hessian_node, max_bin)
                 else:
@@ -110,7 +110,7 @@ class PGBM_numba(object):
                     split_right = ~split_left * split_node
                     split_left = split_left * split_node
                     # Split when enough data in leafs                        
-                    if (split_left.sum() > min_data_in_leaf) & (split_right.sum() > min_data_in_leaf):
+                    if (np.sum(split_left) > min_data_in_leaf) & (np.sum(split_right) > min_data_in_leaf):
                         # Save split information
                         nodes_idx[estimator, node_idx] = node
                         nodes_split_feature[estimator, node_idx] = sample_features[split_feature_sample] 
@@ -147,53 +147,52 @@ class PGBM_numba(object):
     def _predict_tree(X, mu, variance, estimator, nodes_idx, nodes_split_feature, nodes_split_bin, leaves_idx, leaves_mu, leaves_var, learning_rate, tree_correlation, dist):
         predictions = np.zeros(X.shape[1], dtype=np.int64)
         nodes_predict = np.ones(X.shape[1], dtype=np.int64)
-        mu_total = np.zeros_like(mu)
-        variance_total = np.zeros_like(variance)
-        leaves_idx = leaves_idx[estimator]
-        leaves_mu = leaves_mu[estimator]
-        leaves_var = leaves_var[estimator]
-        nodes_idx = nodes_idx[estimator]
-        nodes_split_feature = nodes_split_feature[estimator]
-        nodes_split_bin = nodes_split_bin[estimator]
+        lr = learning_rate
+        corr = tree_correlation
         node = 1
         # Capture edge case where first node is a leaf (i.e. there is no decision tree, only a single leaf)
-        if np.any(np.equal(node, leaves_idx)):
-            mu_current, variance_current = _predict_leaf(mu, variance, leaves_idx, leaves_mu, leaves_var, node, learning_rate, tree_correlation, dist)
+        leaf_idx = np.equal(node, leaves_idx)
+        if np.any(leaf_idx):
+            var_y = leaves_var[leaf_idx]
+            mu += -lr * leaves_mu[leaf_idx]
+            variance += lr * lr * var_y - 2 * lr * corr * np.sqrt(variance) * np.sqrt(var_y)
             predictions += 1
-            mu_total += mu_current
-            variance_total += variance_current
         else: 
             # Loop until every sample has a prediction (this allows earlier stopping than looping over all possible tree paths)
-            while predictions.sum() < len(predictions):
+            while np.sum(predictions) < len(predictions):
                 # Choose next node (based on breadth-first)
-                node = nodes_predict[(nodes_predict >= node) & (predictions == 0)].min()
+                condition = (nodes_predict >= node) * (predictions == 0)
+                node = nodes_predict[condition].min()
                 # Select current node information
                 split_node = nodes_predict == node
-                current_feature = nodes_split_feature[nodes_idx == node]
-                current_bin = nodes_split_bin[nodes_idx == node]
+                node_idx = (nodes_idx == node)
+                current_feature = np.sum(nodes_split_feature * node_idx)
+                current_bin = np.sum(nodes_split_bin * node_idx)
                 # Split node
-                split_left = (X[current_feature] > current_bin)[0]
+                split_left = (X[current_feature] > current_bin)
                 split_right = ~split_left * split_node
                 split_left = split_left * split_node
-                # Assign information
-                # Get prediction left if it exists
-                if np.any(np.equal(2 * node, leaves_idx)):
-                    mu_current, variance_current = _predict_leaf(mu[split_left], variance[split_left], leaves_idx, leaves_mu, leaves_var, 2 * node, learning_rate, tree_correlation, dist)
-                    predictions[split_left] = 1
-                    mu_total[split_left] = mu_current
-                    variance_total[split_left] = variance_current
+                # Check if children are leaves
+                leaf_idx_left = np.equal(2 * node, leaves_idx)
+                leaf_idx_right = np.equal(2 * node + 1, leaves_idx)
+                # Update mu and variance with left leaf prediction
+                if np.any(leaf_idx_left):
+                    mu += -lr * split_left * leaves_mu[leaf_idx_left]
+                    var_left = split_left * leaves_var[leaf_idx_left]
+                    variance += lr**2 * var_left - 2 * lr * corr * np.sqrt(variance) * np.sqrt(var_left)
+                    predictions += split_left
                 else:
-                    nodes_predict[split_left] = 2 * node
-                # Get prediction right if it exists
-                if np.any(np.equal(2 * node + 1, leaves_idx)):
-                    mu_current, variance_current = _predict_leaf(mu[split_right], variance[split_right], leaves_idx, leaves_mu, leaves_var, 2 * node + 1, learning_rate, tree_correlation, dist)
-                    predictions[split_right] = 1
-                    mu_total[split_right] = mu_current
-                    variance_total[split_right] = variance_current
+                    nodes_predict += split_left * node
+                # Update mu and variance with right leaf prediction
+                if np.any(leaf_idx_right):
+                    mu += -lr * split_right * leaves_mu[leaf_idx_right]
+                    var_right = split_right * leaves_var[leaf_idx_right]
+                    variance += lr**2 * var_right - 2 * lr * corr * np.sqrt(variance) * np.sqrt(var_right)
+                    predictions += split_right
                 else:
-                    nodes_predict[split_right] = 2 * node + 1
+                    nodes_predict += split_right * (node + 1)
                    
-        return mu_total, variance_total 
+        return mu, variance
     
     @staticmethod
     @njit(fastmath=True, parallel=True)
@@ -207,6 +206,31 @@ class PGBM_numba(object):
         return X_splits
     
     def train(self, train_set, objective, metric, params=None, valid_set=None, levels_train=None, levels_valid=None):
+        """
+        Train a PGBM model.
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> model = PGBM_numba()
+            >> model.train(train_set, objective, metric)
+        
+        Args:
+            train_set (tuple of ([n_trainig_samples x n_features], [n_training_samples])): sample set (X, y) on which to train the PGBM model, 
+                where X contains the features of the samples and y is the ground truth.
+            objective (function): The objective function is the loss function that will be optimized during the gradient boosting process.
+                The function should consume a numpy vector of predictions yhat and ground truth values y and output the gradient and 
+                hessian with respect to yhat of the loss function. For more complicated loss functions, it is possible to add a 
+                levels variable, but this can be set to None in case it is not required.
+            metric (function): The metric function is the function that generates the error metric. The evaluation 
+                metric should consume a torch vector of predictions yhat and ground truth values y, and output a scalar loss. For 
+                more complicated evaluation metrics, it is possible to add a levels variable, but this can be set to None in case 
+                it is not required.
+            params (dictionary): Dictionary containing the learning parameters of a PGBM model. 
+            valid_set (tuple of ([n_validation_samples x n_features], [n_validation_samples])): sample set (X, y) on which to validate 
+                the PGBM model, where X contains the features of the samples and y is the ground truth.
+            levels_train (dictionary of arrays): if the objective requires a levels variable, it can supplied here.
+            levels_valid (dictionary of arrays): if the metric requires a levels variable, it can supplied here.
+        """
         # Create parameters
         if params is None:
             params = {}
@@ -258,7 +282,7 @@ class PGBM_numba(object):
             # Create tree
             self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['split_parallel'])
             # Get predictions for all samples
-            yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.params['learning_rate'], self.params['tree_correlation'], dist)
+            yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator, self.nodes_idx[estimator], self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
             # Compute new gradient and hessian
             gradient, hessian = self.objective(yhat_train, y_train, levels_train)
             # Compute metric
@@ -267,7 +291,7 @@ class PGBM_numba(object):
             train_nodes.fill(1)
             # Validation statistics
             if validate:
-                yhat_validate, _ =  self._predict_tree(X_validate_splits, yhat_validate, yhat_validate*0., estimator, self.nodes_idx,  self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.params['learning_rate'], self.params['tree_correlation'], dist)
+                yhat_validate, _ =  self._predict_tree(X_validate_splits, yhat_validate, yhat_validate*0., estimator, self.nodes_idx[estimator],  self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
                 validation_metric = metric(yhat_validate, y_validate, levels_valid)
                 if (self.params['verbose'] > 1):
                     print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
@@ -284,8 +308,31 @@ class PGBM_numba(object):
                     print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}")
                 self.best_iteration = estimator
                 self.best_score = 0
+
+        # Truncate tree arrays
+        self.leaves_idx             = self.leaves_idx[:self.best_iteration]
+        self.leaves_mu              = self.leaves_mu[:self.best_iteration]
+        self.leaves_var             = self.leaves_var[:self.best_iteration]
+        self.nodes_idx              = self.nodes_idx[:self.best_iteration]
+        self.nodes_split_bin        = self.nodes_split_bin[:self.best_iteration]
+        self.nodes_split_feature    = self.nodes_split_feature[:self.best_iteration]
                        
-    def predict(self, X):
+    def predict(self, X, parallel=True):
+        """
+        Generate point estimates/forecasts for a given sample set X
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM_numba()
+            >> model.train(train_set, objective, metric)
+            >> yhat_test = model.predict(X_test)
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to create the estimates/forecasts.
+            parallel (boolean): not applicable. Only in place to support easy switching between 
+                Torch and Numba backend.
+        """
         dist = False
         yhat0 = self.yhat_0.repeat(X.shape[0])
         mu = np.zeros(X.shape[0], dtype=np.float64)
@@ -295,11 +342,28 @@ class PGBM_numba(object):
         
         # Predict samples
         for estimator in range(self.best_iteration):
-            mu, variance =  self._predict_tree(X_test_splits, mu, variance, estimator, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.params['learning_rate'], self.params['tree_correlation'], dist)
+            mu, variance =  self._predict_tree(X_test_splits, mu, variance, estimator, self.nodes_idx[estimator], self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
 
         return yhat0 + mu
        
-    def predict_dist(self, X, n_samples):
+    def predict_dist(self, X, n_forecasts=100, parallel=True):
+        """
+        Generate probabilistic estimates/forecasts for a given sample set X
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM_numba()
+            >> model.train(train_set, objective, metric)
+            >> yhat_test_dist = model.predict_dist(X_test)
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to create 
+            the estimates/forecasts.
+            n_forecasts (integer): number of estimates/forecasts to create.
+            parallel (boolean): not applicable. Only in place to support easy switching between 
+                Torch and Numba backend.
+        """
         dist = True
         yhat0 = self.yhat_0.repeat(X.shape[0])
         mu = np.zeros(X.shape[0], dtype=np.float64)
@@ -309,43 +373,61 @@ class PGBM_numba(object):
         
         # Compute aggregate mean and variance
         for estimator in range(self.best_iteration):
-            self.estimator = estimator
-            mu, variance =  self._predict_tree(X_test_splits, mu, variance, estimator, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.params['learning_rate'], self.params['tree_correlation'], dist)
+            mu, variance =  self._predict_tree(X_test_splits, mu, variance, estimator, self.nodes_idx[estimator], self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
         
         # Sample from distribution
         mu += yhat0
         if self.params['distribution'] == 'normal':
             loc = mu
             scale = np.sqrt(variance)
-            yhat = np.random.normal(loc, scale, (n_samples, loc.shape[0]))
+            yhat = np.random.normal(loc, scale, (n_forecasts, loc.shape[0]))
         elif self.params['distribution'] == 'laplace':
             loc = mu
             scale = np.clip(np.sqrt(0.5 * variance), 1e-9)
-            yhat =  np.random.laplace(loc, scale, (n_samples, loc.shape[0]))
+            yhat =  np.random.laplace(loc, scale, (n_forecasts, loc.shape[0]))
         elif self.params['distribution'] == 'logistic':
             loc = mu
             scale = np.clip(np.sqrt((3 * variance) / np.pi**2), 1e-9)
-            yhat =  np.random.logistic(loc, scale, (n_samples, loc.shape[0]))
+            yhat =  np.random.logistic(loc, scale, (n_forecasts, loc.shape[0]))
         elif self.params['distribution'] == 'gamma':
             variance = np.clip(variance, 1e-9)
             mu = np.clip(mu, 1e-9)
             rate = (mu / variance)
             shape = mu * rate
-            yhat =  np.random.gamma(shape, rate, (n_samples, loc.shape[0]))
+            yhat =  np.random.gamma(shape, rate, (n_forecasts, loc.shape[0]))
         elif self.params['distribution'] == 'gumbel':
             variance = np.clip(variance, 1e-9)
             scale = np.clip(np.sqrt(6 * variance / np.pi**2), 1e-9)
             loc = mu - scale * np.euler_gamma
-            yhat =  np.random.gumbel(loc, scale, (n_samples, loc.shape[0]))
+            yhat =  np.random.gumbel(loc, scale, (n_forecasts, loc.shape[0]))
         elif self.params['distribution'] == 'poisson':
-            yhat = np.random.poisson(loc, scale, (n_samples, loc.shape[0]))
+            yhat = np.random.poisson(loc, scale, (n_forecasts, loc.shape[0]))
         else:
             print('Distribution not (yet) supported')
         
         return yhat
     
-    # Calculates the empirical CRPS for a set of forecasts for a number of samples
     def crps_ensemble(self, yhat_dist, y):
+        """
+        Calculate the empirical Continuously Ranked Probability Score for a set 
+        of forecasts for a number of samples.
+        
+        Based on `crps_ensemble` from `properscoring`
+        https://pypi.org/project/properscoring/
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM_numba()
+            >> model.train(train_set, objective, metric)
+            >> yhat_test_dist = model.predict_dist(X_test)
+            >> crps = model.crps_ensemble(yhat_test_dist, y_test)
+        
+        Args:
+            yhat_dist (array of [n_forecasts x n_samples]): array containing forecasts 
+            for each sample.
+            y (array of [n_samples]): ground truth value of each sample.
+        """
         n_forecasts = yhat_dist.shape[0]
         # Sort the forecasts in ascending order
         yhat_dist_sorted = np.sort(yhat_dist, 0)
@@ -370,8 +452,20 @@ class PGBM_numba(object):
         
         return crps       
     
-    # Save a PGBM model
     def save(self, filename):
+        """
+        Save a PGBM model to a file. The model parameters are saved as numpy arrays and dictionaries. 
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> model.save('model.pt')
+        
+        Args:
+            filename (string): name and location to save the model to
+        """
         state_dict = {'nodes_idx': self.nodes_idx,
                       'nodes_split_feature':self.nodes_split_feature,
                       'nodes_split_bin':self.nodes_split_bin,
@@ -388,6 +482,18 @@ class PGBM_numba(object):
             pickle.dump(state_dict, handle)   
     
     def load(self, filename):
+        """
+        Load a PGBM model from a file 
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM_numba()
+            >> model.load('model.pt')
+        
+        Args:
+            filename (string): location of model file.
+        """
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
         
@@ -405,6 +511,29 @@ class PGBM_numba(object):
         
     # Calculate permutation importance of a PGBM model
     def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
+        """
+        Calculate feature importance of a PGBM model for a sample set X by randomly 
+        permuting each feature. 
+        
+        This function can be executed in a supervised and unsupervised manner, depending
+        on whether y is given. If y is given, the output of this function is the change
+        in error metric when randomly permuting a feature. If y is not given, the output
+        is the weighted average change in prediction when randomly permuting a feature. 
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> test_set = (X_test, y_test)
+            >> model = PGBM_numba()
+            >> model.train(train_set, objective, metric)
+            >> perm_importance_supervised = model.permutation_importance(X_test, y_test)  # Supervised
+            >> perm_importance_unsupervised = model.permutation_importance(X_test)  # Unsupervised
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to determine the feature importance.
+            y (array of [n_samples]): ground truth for sample set X.
+            n_permutations (integer): number of random permutations to perform for each feature.
+            levels (dict of arrays):only applicable when using a levels argument in the error metric.
+        """
         n_samples = X.shape[0]
         n_features = X.shape[1]
         permutation_importance_metric = np.zeros((n_features, n_permutations), dtype=np.float64)
@@ -433,35 +562,19 @@ class PGBM_numba(object):
                 permutation_importance_metric[feature] = (yhat_base[None, :] - yhat).abs().sum(1) / yhat_base.sum() * 100                
         
         return permutation_importance_metric
-
-@njit(fastmath=True)
-def _predict_leaf(mu_x, var_x, leaves_idx, leaves_mu, leaves_var, node, learning_rate, tree_correlation, dist):
-    leaf_idx = leaves_idx == node
-    lr = learning_rate
-    corr = tree_correlation
-    mu_y = leaves_mu[leaf_idx]
-    mu_y = lr * mu_y
-    mu = mu_x - mu_y
-    if dist == True:
-        var_y = leaves_var[leaf_idx]
-        variance = var_x + lr * lr * var_y - 2 * lr * corr * np.sqrt(var_x) * np.sqrt(var_y)
-    else:
-        variance = var_x
-    return mu, variance
-
     
-@njit(fastmath=True)
+@njit(fastmath=True, parallel=True)
 def _leaf_prediction(gradient, hessian, node, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var):
     # Empirical mean
-    gradient_mean = gradient.mean()
-    hessian_mean = hessian.mean()
+    gradient_mean = np.mean(gradient)
+    hessian_mean = np.mean(hessian)
     # Empirical variance
     N = len(gradient)
     factor = 1 / (N - 1)
-    gradient_variance = factor * ((gradient - gradient_mean)**2).sum()
-    hessian_variance = factor * ((hessian - hessian_mean)**2).sum()
+    gradient_variance = factor * np.sum((gradient - gradient_mean)**2)
+    hessian_variance = factor * np.sum((hessian - hessian_mean)**2)
     # Empirical covariance
-    covariance = factor * ((gradient - gradient_mean)*(hessian - hessian_mean)).sum()
+    covariance = factor * np.sum((gradient - gradient_mean)*(hessian - hessian_mean))
     # Mean and variance of the leaf prediction
     lambda_scaled = lampda / N
     mu = gradient_mean / ( hessian_mean + lambda_scaled) - covariance / (hessian_mean + lambda_scaled)**2 + (hessian_variance * gradient_mean) / (hessian_mean + lambda_scaled)**3
