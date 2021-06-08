@@ -1,3 +1,7 @@
+## v0.4 ##
+* Critical bug fix in Numba backend version.
+* Modified load function in Numba backend version to improve consistency with Torch backend version.
+
 ## v0.3 ##
 * Complete rewrite of prediction algorithm, enabling parallelization over the tree ensemble which speeds up prediction times. Added a 'parallel' option to the predict functions to allow users to choose prediction mode.
 * Added truncation of learned tree arrays after training, to reduce storage cost of a PGBM model.

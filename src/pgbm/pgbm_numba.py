@@ -256,8 +256,8 @@ class PGBM_numba(object):
         self.nodes_split_feature = np.zeros_like(self.nodes_idx)
         self.nodes_split_bin = np.zeros_like(self.nodes_idx)
         self.leaves_idx = np.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=np.int64)
-        self.leaves_mu = np.zeros_like(self.leaves_idx)
-        self.leaves_var = np.zeros_like(self.leaves_idx)
+        self.leaves_mu = np.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=np.float64)
+        self.leaves_var = np.zeros_like(self.leaves_mu)
         self.feature_importance = np.zeros(self.n_features, dtype=np.float64)
         dist = False
         # Pre-compute split decisions for X_train
@@ -481,7 +481,7 @@ class PGBM_numba(object):
         with open(filename, 'wb') as handle:
             pickle.dump(state_dict, handle)   
     
-    def load(self, filename):
+    def load(self, filename, device=None):
         """
         Load a PGBM model from a file 
         
@@ -493,6 +493,8 @@ class PGBM_numba(object):
         
         Args:
             filename (string): location of model file.
+            device (): not applicable, only included to support convenient 
+                switching between the Torch and Numba backend packages
         """
         with open(filename, 'rb') as handle:
             state_dict = pickle.load(handle)
