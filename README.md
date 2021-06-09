@@ -34,7 +34,7 @@ The core package has the following dependencies which should be installed separa
 ##### Numba backend #####
 * Numba >= 0.53.1 (https://numba.readthedocs.io/en/stable/user/installing.html). 
 
-The Numba backend does not support differentiable loss functions. 
+The Numba backend does not support differentiable loss functions and GPU training is also not supported using this backend.
 
 ### Support ###
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
