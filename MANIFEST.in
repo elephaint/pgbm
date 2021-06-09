@@ -1,0 +1,2 @@
+include src\pgbm\parallelsum.cpp
+include src\pgbm\parallelsum_kernel.cu

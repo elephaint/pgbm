@@ -14,7 +14,8 @@ setuptools.setup(
     url="https://github.com/elephaint/pgbm",
     packages=setuptools.find_packages(where="src"),
     include_package_data = True,
-	package_dir={"": "src"},
+	package_dir={"pgbm": "src/pgbm",
+              "pgbm_nb": "src/pgbm_nb"},
     classifiers=[
          "Programming Language :: Python :: 3.8",
          "License :: OSI Approved :: Apache Software License",
