@@ -14,7 +14,10 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 Run `pip install pgbm` from a terminal within the virtual environment of your choice.
 
 #### Verification ####
-* Download & run an example from the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder to verify the installation is correct. Use both `gpu` and `cpu` as device to check if you are able to train on both GPU and CPU.
+* Download & run an example from the examples folder to verify the installation is correct:
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/example01_bostonhousing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/example02_bostonhousing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/example12_bostonhousing_numba.py) to verify ability to train & predict on CPU with Numba backend.
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 * When using the Numba-backend, several functions need to be JIT-compiled. Hence, the first time you train a model using this backend it can take a bit longer.
 
