@@ -28,9 +28,9 @@ import numpy as np
 from numba import njit, prange, config
 import pickle
 #%% Probabilistic Gradient Boosting Machines
-class PGBM_numba(object):
+class PGBM(object):
     def __init__(self):
-        super(PGBM_numba, self).__init__()
+        super(PGBM, self).__init__()
     
     def _init_params(self, params):       
         self.params = {}
@@ -211,7 +211,7 @@ class PGBM_numba(object):
         
         Example::
             >> train_set = (X_train, y_train)
-            >> model = PGBM_numba()
+            >> model = PGBM()
             >> model.train(train_set, objective, metric)
         
         Args:
@@ -324,7 +324,7 @@ class PGBM_numba(object):
         Example::
             >> train_set = (X_train, y_train)
             >> test_set = (X_test, y_test)
-            >> model = PGBM_numba()
+            >> model = PGBM()
             >> model.train(train_set, objective, metric)
             >> yhat_test = model.predict(X_test)
         
@@ -353,7 +353,7 @@ class PGBM_numba(object):
         Example::
             >> train_set = (X_train, y_train)
             >> test_set = (X_test, y_test)
-            >> model = PGBM_numba()
+            >> model = PGBM()
             >> model.train(train_set, objective, metric)
             >> yhat_test_dist = model.predict_dist(X_test)
         
@@ -418,7 +418,7 @@ class PGBM_numba(object):
         Example::
             >> train_set = (X_train, y_train)
             >> test_set = (X_test, y_test)
-            >> model = PGBM_numba()
+            >> model = PGBM()
             >> model.train(train_set, objective, metric)
             >> yhat_test_dist = model.predict_dist(X_test)
             >> crps = model.crps_ensemble(yhat_test_dist, y_test)
@@ -488,7 +488,7 @@ class PGBM_numba(object):
         Example::
             >> train_set = (X_train, y_train)
             >> test_set = (X_test, y_test)
-            >> model = PGBM_numba()
+            >> model = PGBM()
             >> model.load('model.pt')
         
         Args:
@@ -525,7 +525,7 @@ class PGBM_numba(object):
         Example::
             >> train_set = (X_train, y_train)
             >> test_set = (X_test, y_test)
-            >> model = PGBM_numba()
+            >> model = PGBM()
             >> model.train(train_set, objective, metric)
             >> perm_importance_supervised = model.permutation_importance(X_test, y_test)  # Supervised
             >> perm_importance_unsupervised = model.permutation_importance(X_test)  # Unsupervised

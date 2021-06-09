@@ -18,7 +18,7 @@
 """
 
 #%% Load packages
-from pgbm import PGBM_numba
+from pgbm_nb import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
@@ -41,7 +41,7 @@ X, y = load_boston(return_X_y=True)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 train_data = (X_train, y_train)
 # Train on set 
-model = PGBM_numba()  
+model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 #% Point and probabilistic predictions
 yhat_point = model.predict(X_test)

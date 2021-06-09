@@ -19,7 +19,7 @@
 
 #%% Load packages
 import torch
-from pgbm import PGBM, PGBM_numba
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 #%% Objective for pgbm
@@ -64,7 +64,8 @@ crps = model_new.crps_ensemble(yhat_dist, y_test).mean()
 # Print final scores
 print(f'CRPS PGBM: {crps:.2f}')
 #%% Load model trained with PyTorch-CPU and predict with Numba backend.
-model_new = PGBM_numba()
+from pgbm_nb import PGBM
+model_new = PGBM()
 model_new.load('model.pt')
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)

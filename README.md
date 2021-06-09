@@ -22,7 +22,7 @@ Run `pip install pgbm` from a terminal within the virtual environment of your ch
 The core package has the following dependencies: 
 * PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/)
 * Numpy >= 1.19.2 (install via `pip` or `conda`; https://github.com/numpy/numpy)
-* CUDA Toolkit 11.0 (or one matching your PyTorch distribution) (https://developer.nvidia.com/cuda-toolkit)
+* CUDA Toolkit matching your PyTorch distribution (https://developer.nvidia.com/cuda-toolkit)
 * PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but contact the author if you find it still not working even after installing these dependencies. 
 * To run the experiments comparing against baseline models a number of additional packages may need to be installed via `pip` or  `conda`.
 
