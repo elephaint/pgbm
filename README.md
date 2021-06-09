@@ -4,15 +4,15 @@
 [![GitHub license](https://img.shields.io/pypi/l/pgbm)](https://github.com/elephaint/pgbm/blob/main/LICENSE)
 
 _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient boosting framework in Python based on PyTorch/Numba, developed by Airlab in Amsterdam. It provides the following advantages over existing frameworks:
-* Probabilistic regression estimates instead of only point estimates.
-* Auto-differentiation of custom loss functions.
-* Native GPU-acceleration.
-* Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model.
+* Probabilistic regression estimates instead of only point estimates. ([example](https://github.com/elephaint/pgbm/blob/main/examples/example01_bostonhousing_cpu.py))
+* Auto-differentiation of custom loss functions. ([example](https://github.com/elephaint/pgbm/blob/main/examples/example08_bostonhousing_autodiff.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/example10_covidhospitaladmissions.py))
+* Native (multi-)GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/example02_bostonhousing_gpu.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/example03_bostonhousing_gpu_multi.py))
+* Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/example07_optimizeddistribution.py))
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 ### Installation ###
-Run `pip install pgbm` from a terminal within the virtual environment of your choice.
+Run `pip install pgbm` from a terminal within a Python (virtual) environment of your choice.
 
 #### Verification ####
 * Download & run an example from the examples folder to verify the installation is correct:
@@ -27,14 +27,13 @@ Run `pip install pgbm` from a terminal within the virtual environment of your ch
 The core package has the following dependencies which should be installed separately (installing the core package via `pip` will not automatically install these dependencies).
 
 ##### Torch backend #####
-* PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
 * CUDA Toolkit matching your PyTorch distribution (https://developer.nvidia.com/cuda-toolkit)
-* Numpy >= 1.19.2 (install via `pip` or `conda`; https://github.com/numpy/numpy)
+* PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
 * PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but [open an issue](https://github.com/elephaint/pgbm/issues) if you find it still not working even after installing these dependencies. 
 
 ##### Numba backend #####
-* Numba (https://numba.readthedocs.io/en/stable/user/installing.html). 
-* Numpy >= 1.19.2 (install via `pip` or `conda`; https://github.com/numpy/numpy)
+* Numba >= 0.53.1 (https://numba.readthedocs.io/en/stable/user/installing.html). 
+
 The Numba backend does not support differentiable loss functions. 
 
 ### Support ###
