@@ -19,7 +19,7 @@
 #%%
 import torch
 import time
-from pgbm import PGBM, PGBM_numba
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 from datasets import get_dataset, get_fold
@@ -53,12 +53,13 @@ data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, random_state=0)
 X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
 #%% Parameters
+base_estimators = 100
 params = {'min_split_gain':0,
       'min_data_in_leaf':1,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,
-      'n_estimators':100,
+      'n_estimators':base_estimators,
       'verbose':2,
       'early_stopping_rounds':100,
       'feature_fraction':1,
@@ -75,7 +76,12 @@ params = {'min_split_gain':0,
 # Tuples of datasets in tensors
 train_val_data = (X_train_val, y_train_val)
 valid_data = (X_val, y_val)
+# Train 1 iteration to compile code
+params['n_estimators'] = 1
+model = PGBM()    
+model.train(train_set=train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
 # Train to retrieve best iteration
+params['n_estimators'] = base_estimators
 start = time.perf_counter()
 model = PGBM()    
 model.train(train_set=train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
@@ -83,14 +89,20 @@ torch.cuda.synchronize()
 end = time.perf_counter()
 print(f'Fold time: {end - start:.2f}s')
 #%% PGBM-Numba
+# Import numba-backend package
+from pgbm_nb import PGBM
 # Tuples of datasets in tensors
 train_val_data = (X_train_val, y_train_val)
 valid_data = (X_val, y_val)
-# Train to retrieve best iteration
-start = time.perf_counter()
-model = PGBM_numba()    
+# Train 1 iteration to compile code
+params['n_estimators'] = 1
+model = PGBM()    
 model.train(train_set=train_val_data, objective=mseloss_objective_np, metric=rmseloss_metric_np, valid_set=valid_data, params=params)
-torch.cuda.synchronize()
+# Train to retrieve best iteration
+params['n_estimators'] = base_estimators
+start = time.perf_counter()
+model = PGBM()    
+model.train(train_set=train_val_data, objective=mseloss_objective_np, metric=rmseloss_metric_np, valid_set=valid_data, params=params)
 end = time.perf_counter()
 print(f'Fold time: {end - start:.2f}s')
 #%% LightGBM

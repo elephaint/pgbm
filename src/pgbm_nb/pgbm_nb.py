@@ -195,12 +195,12 @@ class PGBM(object):
         return mu, variance
     
     @staticmethod
-    @njit(fastmath=True, parallel=True)
+    @njit(fastmath=True)
     def _create_X_splits(X, bins, max_bin):
         # Pre-compute split decisions for Xtrain
         X_splits = np.zeros((X.shape[1], X.shape[0]), dtype=np.int32)
         
-        for i in prange(max_bin):
+        for i in range(max_bin):
             X_splits += (X > bins[:, i]).T
     
         return X_splits
@@ -380,28 +380,31 @@ class PGBM(object):
         if self.params['distribution'] == 'normal':
             loc = mu
             scale = np.sqrt(variance)
-            yhat = np.random.normal(loc, scale, (n_forecasts, loc.shape[0]))
+            yhat = np.random.normal(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'laplace':
             loc = mu
-            scale = np.clip(np.sqrt(0.5 * variance), 1e-9)
-            yhat =  np.random.laplace(loc, scale, (n_forecasts, loc.shape[0]))
+            scale = np.sqrt(0.5 * variance)
+            scale = np.clip(scale, 1e-9, scale.max())
+            yhat =  np.random.laplace(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'logistic':
             loc = mu
-            scale = np.clip(np.sqrt((3 * variance) / np.pi**2), 1e-9)
-            yhat =  np.random.logistic(loc, scale, (n_forecasts, loc.shape[0]))
+            scale = np.sqrt((3 * variance) / np.pi**2)
+            scale = np.clip(scale, 1e-9, scale.max())
+            yhat =  np.random.logistic(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'gamma':
-            variance = np.clip(variance, 1e-9)
-            mu = np.clip(mu, 1e-9)
-            rate = (mu / variance)
-            shape = mu * rate
-            yhat =  np.random.gamma(shape, rate, (n_forecasts, loc.shape[0]))
+            variance = np.clip(variance, 1e-9, variance.max())
+            mu = np.clip(mu, 1e-9, mu.max())
+            shape = mu**2 / variance
+            scale = mu / shape
+            yhat =  np.random.gamma(shape, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'gumbel':
-            variance = np.clip(variance, 1e-9)
-            scale = np.clip(np.sqrt(6 * variance / np.pi**2), 1e-9)
+            variance = np.clip(variance, 1e-9, variance.max())
+            scale = np.sqrt(6 * variance / np.pi**2)
+            scale = np.clip(scale, 1e-9, scale.max())
             loc = mu - scale * np.euler_gamma
-            yhat =  np.random.gumbel(loc, scale, (n_forecasts, loc.shape[0]))
+            yhat =  np.random.gumbel(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'poisson':
-            yhat = np.random.poisson(loc, scale, (n_forecasts, loc.shape[0]))
+            yhat = np.random.poisson(loc, scale, (n_forecasts, mu.shape[0]))
         else:
             print('Distribution not (yet) supported')
         
