@@ -1,3 +1,6 @@
+### v0.6.1 ###
+* Fixed bug in Numba feature importance calculation
+
 ## v0.6 ##
 * Fixed bug in Numba version where parallel construction of pre-computing splits failed.
 * Fixed bug in Numba version where variance of distributions (other than Normal) was not properly clipped.

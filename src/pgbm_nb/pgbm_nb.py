@@ -545,11 +545,10 @@ class PGBM(object):
         # Calculate base score
         yhat_base = self.predict(X)
         if y is not None:
-            y = self._convert_array(y)
             base_metric = self.metric(yhat_base, y, levels)
         # Loop over permuted features
         for feature in range(n_features):
-            X_permuted = np.zeros((n_permutations, n_samples, n_features), device=X.device, dtype=X.dtype)
+            X_permuted = np.zeros((n_permutations, n_samples, n_features), dtype=X.dtype)
             for permutation in range(n_permutations):
                 indices = np.random.choice(n_samples, n_samples)
                 X_current = X.copy()
@@ -564,7 +563,7 @@ class PGBM(object):
                     permuted_metric = self.metric(yhat[permutation], y, levels)
                     permutation_importance_metric[feature, permutation] = ((permuted_metric / base_metric) - 1) * 100
             else:
-                permutation_importance_metric[feature] = (yhat_base[None, :] - yhat).abs().sum(1) / yhat_base.sum() * 100                
+                permutation_importance_metric[feature] = np.abs(yhat_base[None, :] - yhat).sum(1) / yhat_base.sum() * 100                
         
         return permutation_importance_metric
     
