@@ -12,7 +12,7 @@ This folder contains examples of PGBM. The examples illustrate the following:
 
 Note: to use the `higgs` dataset in any of the examples, download [here](https://archive.ics.uci.edu/ml/datasets/HIGGS), unpack and save `HIGGS.csv` to your local working directory.
 
-Below is an example of a probabilistic regression task: predict housing prices for the [Boston Housing dataset](https://archive.ics.uci.edu/ml/machine-learning-databases/housing/). The code for this example can be found [here](https://github.com/elephaint/pgbm/blob/main/examples/example1_bostonhousing.py).
+Below is an example of a probabilistic regression task: predict housing prices for the [Boston Housing dataset](https://archive.ics.uci.edu/ml/machine-learning-databases/housing/). The code for this example can be found [here](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_bostonhousing_cpu.py).
 
 First, we import the necessary packages. In this simple example we will train on the CPU.
 ```
