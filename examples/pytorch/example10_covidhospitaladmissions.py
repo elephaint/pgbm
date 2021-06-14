@@ -243,8 +243,8 @@ for fold, date in enumerate(validation_dates):
     levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['Security_region_code_enc']).values).bool().to(torch_device))    
     levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['ROAZ_region_enc']).values).bool().to(torch_device))  
     # Create datasets
-    train_data = (X_train, y_train)
-    val_data = (X_val, y_val)
+    train_data = (X_train.values, y_train.values)
+    val_data = (X_val.values, y_val.values)
     model = PGBM()
     model.train(train_data, objective=wmseloss_objective, valid_set = val_data, metric=wmseloss_objective, params=params, levels_train=levels_train, levels_valid=levels_val)
     # Calculate best fitting tree correlation and distribution for this fold
@@ -253,7 +253,7 @@ for fold, date in enumerate(validation_dates):
             print(f'Fold {fold} / Tree correlation {i} / Distribution {j}')
             model.params['tree_correlation'] = tree_correlation
             model.params['distribution'] = distribution
-            yhat_dist = model.predict_dist(X_val, n_forecasts=n_forecasts)
+            yhat_dist = model.predict_dist(X_val.values, n_forecasts=n_forecasts)
             yhat_dist = yhat_dist.clamp(0, 1e9)  # clipping to avoid negative predictions of symmetric distributions
             crps = crps_levels(yhat_dist, torch.from_numpy(y_val.values).float().to(torch_device), levels_val)
             df_val_result = df_val_result.append({'fold': fold, 'tree_correlation': tree_correlation, 'distribution': distribution, 'best_iteration': model.best_iteration, 'best_score': model.best_score.cpu().numpy().item(), 'crps_municipality': crps[0].cpu().numpy().item(), 'crps_security_region': crps[1].cpu().numpy().item(), 'crps_roaz_region': crps[2].cpu().numpy().item(), 'crps_national': crps[3].cpu().numpy().item()}, ignore_index=True)
@@ -286,13 +286,13 @@ df_train.drop(columns=['Date_of_statistics','Municipality_name', 'Security_regio
 df_test.drop(columns=['Date_of_statistics','Municipality_name', 'Security_region_name', 'ROAZ_region'], inplace=True)
 X_train, y_train = df_train.iloc[:, :-1], df_train.iloc[:, -1] 
 X_test, y_test = df_test.iloc[:, :-1], df_test.iloc[:, -1] 
-train_data = (X_train, y_train)
+train_data = (X_train.values, y_train.values)
 # Train
 model = PGBM()
 model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)
 # Predict
-yhat_test = np.clip(model.predict(X_test).cpu().numpy(), 0, 1e9)
-yhat_test_dist = model.predict_dist(X_test, n_forecasts=n_forecasts)
+yhat_test = np.clip(model.predict(X_test.values).cpu().numpy(), 0, 1e9)
+yhat_test_dist = model.predict_dist(X_test.values, n_forecasts=n_forecasts)
 yhat_test_dist = np.clip(yhat_test_dist.cpu().numpy(), 0, 1e9)
 # Add results to df
 df_pred_test = pd.DataFrame(index=y_test.index, data=yhat_test, columns=['Hospital_admission_predicted'])
@@ -324,7 +324,7 @@ fig.legend(loc='upper right')
 feature_names = X_train.columns.values
 val_fi, idx_fi = torch.sort(model.feature_importance.cpu())
 # Feature importance from permutation importance on test set. This can be slow to calculate!
-permutation_importance = model.permutation_importance(X_test, levels=levels_test)
+permutation_importance = model.permutation_importance(X_test.values, levels=levels_test)
 mean_permutation_importance = permutation_importance.mean(1)
 _, idx_pi = torch.sort(mean_permutation_importance)
 idx_pi, permutation_importance = idx_pi.cpu(), permutation_importance.cpu()

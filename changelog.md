@@ -1,10 +1,18 @@
+## v0.7 ##
+* Added `optimize_distribution` function to fit best distribution more easily.
+* Fixed bug in Numba backend Poisson distribution.
+* Improved speed of Numba backend version.
+* Parallelized pre-computing split decisions on numba backend. Changed dtype to int16 instead of int32.
+* Reduced integer size of CUDA kernel to short int.
+* Split examples to support example for both backends.
+
 ### v0.6.1 ###
-* Fixed bug in Numba feature importance calculation
+* Fixed bug in Numba feature importance calculation.
 
 ## v0.6 ##
 * Fixed bug in Numba version where parallel construction of pre-computing splits failed.
 * Fixed bug in Numba version where variance of distributions (other than Normal) was not properly clipped.
-* Fixed Gamma distribution in Numba version
+* Fixed Gamma distribution in Numba version.
 
 ### v0.5.1 ###
 * Fixed bug in PyPi release where the custom CUDA kernel was not included in the distribution.

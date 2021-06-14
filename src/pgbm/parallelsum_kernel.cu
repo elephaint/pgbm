@@ -71,7 +71,7 @@ __global__ void _kernel_psum(
 }
 
 __global__ void _kernel_Atomic(
-  const torch::PackedTensorAccessor32<int,2,torch::RestrictPtrTraits> X,
+  const torch::PackedTensorAccessor32<short int,2,torch::RestrictPtrTraits> X,
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> gradient,
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> hessian,
   torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> Gl,
@@ -154,7 +154,7 @@ std::vector<torch::Tensor> _split_decision_cuda(
     const dim3 numBlocks(bpg_x, bpg_y);
 
     _kernel_Atomic<<<numBlocks, threadsPerBlock>>>(
-      X.packed_accessor32<int,2,torch::RestrictPtrTraits>(),
+      X.packed_accessor32<short int,2,torch::RestrictPtrTraits>(),
       gradient.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       hessian.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       Gl.packed_accessor32<float,2,torch::RestrictPtrTraits>(),

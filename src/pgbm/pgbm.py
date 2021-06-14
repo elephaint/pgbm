@@ -171,7 +171,7 @@ class PGBM(nn.Module):
                     split_bin = argmaxsg - split_feature_sample * self.params['max_bin']
                     split_left = (Xe[split_feature_sample] > split_bin).squeeze()
                     split_right = ~split_left * split_node
-                    split_left = split_left * split_node
+                    split_left *= split_node
                     # Split when enough data in leafs                        
                     if (split_left.sum() > self.params['min_data_in_leaf']) & (split_right.sum() > self.params['min_data_in_leaf']):
                         # Save split information
@@ -184,11 +184,11 @@ class PGBM(nn.Module):
                         criterion = 2 * (self.params['max_nodes'] - self.node_idx + 1)
                         n_leaves_old = self.leaf_idx
                         if (criterion >  self.params['max_leaves'] - n_leaves_old):
-                            self.train_nodes[split_left] = 2 * node
+                            self.train_nodes += split_left * node
                         else:
                             self._leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator)
                         if (criterion >  self.params['max_leaves'] - n_leaves_old + 1):
-                            self.train_nodes[split_right] = 2 * node + 1
+                            self.train_nodes += split_right * (node + 1)
                         else:
                             self._leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator)
                     else:
@@ -324,7 +324,7 @@ class PGBM(nn.Module):
         if (self.params['max_bin'] <= 32) or (self.params['max_bin'] == 64) or (self.params['max_bin'] == 128) or (self.params['max_bin'] == 256):
             X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.output_device, dtype=torch.uint8)
         else:
-            X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.output_device, dtype=torch.int32)
+            X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.output_device, dtype=torch.int16)
         
         for i in range(self.params['max_bin']):
             X_splits += (X > self.bins[:, i]).T
@@ -798,7 +798,67 @@ class PGBM(nn.Module):
             else:
                 permutation_importance_metric[feature] = (yhat_base.unsqueeze(0) - yhat).abs().sum(1) / yhat_base.sum() * 100                
         
-        return permutation_importance_metric                   
+        return permutation_importance_metric
+
+    def optimize_distribution(self, X, y, distributions=None, tree_correlations=None):
+        """
+        Find the distribution and tree correlation that best fits the data according to lowest CRPS score. The parameters
+        'distribution' and 'tree_correlation' of a PGBM model will be adjusted to the best values after running this script.
+        
+        This function returns the best found distribution and tree correlation.
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> validation_set = (X_validation, y_validation)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> yhat_dist = model.optimize_distribution(X_validation, y_validation)
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to create 
+            the estimates/forecasts.
+            y (array of [n_samples]): ground truth for sample set X.
+            distributions (list of strings): optional, list containing distributions to choose from. Options are:
+                normal, studentt, laplace, logistic, lognormal, gamma, gumbel, weibull, negativebinomial, poisson.
+            tree_correlations (vector): optional, vector containing tree correlations to use in optimization procedure.
+        """               
+        # Convert input data if not right type
+        X = self._convert_array(X)
+        y = self._convert_array(y)
+ 
+        # List of distributions and tree correlations
+        if distributions == None:
+            distributions = ['normal', 'studentt', 'laplace', 'logistic', 
+                             'lognormal', 'gamma', 'gumbel', 'weibull', 'negativebinomial', 'poisson']
+        if tree_correlations == None:
+            tree_correlations = torch.arange(start=0, end=0.2, step=0.01, dtype=torch.float32, device=X.device)
+        else:
+            tree_correlations = tree_correlations.float().to(X.device)
+               
+        # Loop over choices
+        crps_best = torch.tensor(float('inf'), device = X.device, dtype=torch.float32)
+        distribution_best = self.params['distribution']
+        tree_correlation_best = self.params['tree_correlation']
+        for distribution in distributions:
+            for tree_correlation in tree_correlations:
+                self.params['distribution'] = distribution
+                self.params['tree_correlation'] = tree_correlation
+                yhat_dist = self.predict_dist(X)
+                crps = self.crps_ensemble(yhat_dist, y).mean()
+                if self.params['verbose'] > 1:
+                    print(f'CRPS: {crps:.2f} (Distribution: {distribution}, Tree correlation: {tree_correlation:.3f})')     
+                if crps < crps_best:
+                    crps_best = crps
+                    distribution_best = distribution
+                    tree_correlation_best = tree_correlation
+        
+        # Set to best values
+        if self.params['verbose'] > 1:
+            print(f'Lowest CRPS: {crps_best:.4f} (Distribution: {distribution_best}, Tree correlation: {tree_correlation_best:.3f})')  
+        self.params['distribution'] = distribution_best
+        self.params['tree_correlation'] = tree_correlation_best
+        
+        return (distribution_best, tree_correlation_best)
         
 # Create split decision in module for parallelization                
 class _split_decision(nn.Module):

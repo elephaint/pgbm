@@ -63,14 +63,3 @@ yhat_dist = model_new.predict_dist(X_test)
 crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Load model trained with PyTorch-CPU and predict with Numba backend.
-from pgbm_nb import PGBM
-model_new = PGBM()
-model_new.load('model.pt')
-#% Point and probabilistic predictions
-yhat_point = model_new.predict(X_test)
-yhat_dist = model_new.predict_dist(X_test)
-# Scoring
-crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
-# Print final scores
-print(f'CRPS PGBM: {crps:.2f}')

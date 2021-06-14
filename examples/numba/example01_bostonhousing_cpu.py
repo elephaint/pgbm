@@ -19,19 +19,19 @@
 
 #%% Load packages
 from pgbm_nb import PGBM
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
-import numpy as np
 #%% Objective for pgbm
-def mseloss_objective(yhat, y, levels=None):
+def mseloss_objective(yhat, y):
     gradient = (yhat - y)
     hessian = np.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y, levels=None):
-    loss = np.sqrt(np.mean(((yhat - y)**2)))
+def rmseloss_metric(yhat, y):
+    loss = np.sqrt(np.mean(np.square(yhat - y)))
 
     return loss
 #%% Load data
@@ -43,7 +43,7 @@ train_data = (X_train, y_train)
 # Train on set 
 model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
-#% Point and probabilistic predictions
+#% Point and probabilistic predictions. By default, 100 probabilistic estimates are created
 yhat_point = model.predict(X_test)
 yhat_dist = model.predict_dist(X_test)
 # Scoring
@@ -56,6 +56,6 @@ print(f'CRPS PGBM: {crps:.2f}')
 plt.rcParams.update({'font.size': 22})
 plt.plot(y_test, 'o', label='Actual')
 plt.plot(yhat_point, 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist.max(0), 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist.min(0), 'k--', label='Min bound PGBM')
+plt.plot(yhat_dist.max(axis=0), 'k--', label='Max bound PGBM')
+plt.plot(yhat_dist.min(axis=0), 'k--', label='Min bound PGBM')
 plt.legend()

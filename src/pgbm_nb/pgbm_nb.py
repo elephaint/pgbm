@@ -195,17 +195,19 @@ class PGBM(object):
         return mu, variance
     
     @staticmethod
-    @njit(fastmath=True)
+    @njit(fastmath=True, parallel=True)
     def _create_X_splits(X, bins, max_bin):
-        # Pre-compute split decisions for Xtrain
-        X_splits = np.zeros((X.shape[1], X.shape[0]), dtype=np.int32)
+        # Pre-compute split decisions for X
+        X_splits = np.zeros((X.shape[1], X.shape[0]), dtype=np.uint16)
         
-        for i in range(max_bin):
-            X_splits += (X > bins[:, i]).T
+        for j in prange(X.shape[1]):
+            for i in range(X.shape[0]):
+                for k in range(max_bin):
+                    X_splits[j, i] += (X[i, j] > bins[j, k])
     
         return X_splits
     
-    def train(self, train_set, objective, metric, params=None, valid_set=None, levels_train=None, levels_valid=None):
+    def train(self, train_set, objective, metric, params=None, valid_set=None):
         """
         Train a PGBM model.
         
@@ -219,17 +221,12 @@ class PGBM(object):
                 where X contains the features of the samples and y is the ground truth.
             objective (function): The objective function is the loss function that will be optimized during the gradient boosting process.
                 The function should consume a numpy vector of predictions yhat and ground truth values y and output the gradient and 
-                hessian with respect to yhat of the loss function. For more complicated loss functions, it is possible to add a 
-                levels variable, but this can be set to None in case it is not required.
+                hessian with respect to yhat of the loss function. 
             metric (function): The metric function is the function that generates the error metric. The evaluation 
-                metric should consume a torch vector of predictions yhat and ground truth values y, and output a scalar loss. For 
-                more complicated evaluation metrics, it is possible to add a levels variable, but this can be set to None in case 
-                it is not required.
+                metric should consume a torch vector of predictions yhat and ground truth values y, and output a scalar loss. 
             params (dictionary): Dictionary containing the learning parameters of a PGBM model. 
             valid_set (tuple of ([n_validation_samples x n_features], [n_validation_samples])): sample set (X, y) on which to validate 
                 the PGBM model, where X contains the features of the samples and y is the ground truth.
-            levels_train (dictionary of arrays): if the objective requires a levels variable, it can supplied here.
-            levels_valid (dictionary of arrays): if the metric requires a levels variable, it can supplied here.
         """
         # Create parameters
         if params is None:
@@ -274,25 +271,26 @@ class PGBM(object):
             X_validate_splits = self._create_X_splits(X_validate, self.bins, self.params['max_bin'])
 
         # Retrieve initial loss and gradient
-        gradient, hessian = self.objective(yhat_train, y_train, levels_train)      
+        rng = np.random.default_rng(self.params['seed'])
+        gradient, hessian = self.objective(yhat_train, y_train)      
         # Loop over estimators
         for estimator in range(self.params['n_estimators']):
             # Retrieve bagging batch
-            samples = np.random.choice(self.n_samples, self.bagging_fraction)
+            samples = rng.choice(self.n_samples, self.bagging_fraction)
             # Create tree
             self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['split_parallel'])
             # Get predictions for all samples
             yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator, self.nodes_idx[estimator], self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
             # Compute new gradient and hessian
-            gradient, hessian = self.objective(yhat_train, y_train, levels_train)
+            gradient, hessian = self.objective(yhat_train, y_train)
             # Compute metric
-            train_metric = metric(yhat_train, y_train, levels_train)
+            train_metric = metric(yhat_train, y_train)
             # Reset train nodes
             train_nodes.fill(1)
             # Validation statistics
             if validate:
                 yhat_validate, _ =  self._predict_tree(X_validate_splits, yhat_validate, yhat_validate*0., estimator, self.nodes_idx[estimator],  self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
-                validation_metric = metric(yhat_validate, y_validate, levels_valid)
+                validation_metric = metric(yhat_validate, y_validate)
                 if (self.params['verbose'] > 1):
                     print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
                 if validation_metric < self.best_score:
@@ -377,34 +375,35 @@ class PGBM(object):
         
         # Sample from distribution
         mu += yhat0
+        rng = np.random.default_rng(self.params['seed'])
         if self.params['distribution'] == 'normal':
             loc = mu
             scale = np.sqrt(variance)
-            yhat = np.random.normal(loc, scale, (n_forecasts, mu.shape[0]))
+            yhat = rng.normal(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'laplace':
             loc = mu
             scale = np.sqrt(0.5 * variance)
             scale = np.clip(scale, 1e-9, scale.max())
-            yhat =  np.random.laplace(loc, scale, (n_forecasts, mu.shape[0]))
+            yhat =  rng.laplace(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'logistic':
             loc = mu
             scale = np.sqrt((3 * variance) / np.pi**2)
             scale = np.clip(scale, 1e-9, scale.max())
-            yhat =  np.random.logistic(loc, scale, (n_forecasts, mu.shape[0]))
+            yhat =  rng.logistic(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'gamma':
             variance = np.clip(variance, 1e-9, variance.max())
             mu = np.clip(mu, 1e-9, mu.max())
             shape = mu**2 / variance
             scale = mu / shape
-            yhat =  np.random.gamma(shape, scale, (n_forecasts, mu.shape[0]))
+            yhat =  rng.gamma(shape, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'gumbel':
             variance = np.clip(variance, 1e-9, variance.max())
             scale = np.sqrt(6 * variance / np.pi**2)
             scale = np.clip(scale, 1e-9, scale.max())
             loc = mu - scale * np.euler_gamma
-            yhat =  np.random.gumbel(loc, scale, (n_forecasts, mu.shape[0]))
+            yhat = rng.gumbel(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'poisson':
-            yhat = np.random.poisson(loc, scale, (n_forecasts, mu.shape[0]))
+            yhat = rng.poisson(mu, (n_forecasts, mu.shape[0]))
         else:
             print('Distribution not (yet) supported')
         
@@ -515,7 +514,7 @@ class PGBM(object):
         self.bins = state_dict['bins']
         
     # Calculate permutation importance of a PGBM model
-    def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
+    def permutation_importance(self, X, y=None, n_permutations=10):
         """
         Calculate feature importance of a PGBM model for a sample set X by randomly 
         permuting each feature. 
@@ -537,20 +536,20 @@ class PGBM(object):
             X (array of [n_samples x n_features]): sample set for which to determine the feature importance.
             y (array of [n_samples]): ground truth for sample set X.
             n_permutations (integer): number of random permutations to perform for each feature.
-            levels (dict of arrays):only applicable when using a levels argument in the error metric.
         """
         n_samples = X.shape[0]
         n_features = X.shape[1]
         permutation_importance_metric = np.zeros((n_features, n_permutations), dtype=np.float64)
+        rng = np.random.default_rng(self.params['seed'])
         # Calculate base score
         yhat_base = self.predict(X)
         if y is not None:
-            base_metric = self.metric(yhat_base, y, levels)
+            base_metric = self.metric(yhat_base, y)
         # Loop over permuted features
         for feature in range(n_features):
             X_permuted = np.zeros((n_permutations, n_samples, n_features), dtype=X.dtype)
             for permutation in range(n_permutations):
-                indices = np.random.choice(n_samples, n_samples)
+                indices = rng.choice(n_samples, n_samples)
                 X_current = X.copy()
                 X_current[:, feature] = X_current[indices, feature]
                 X_permuted[permutation] = X_current
@@ -560,12 +559,66 @@ class PGBM(object):
             yhat = yhat.reshape(n_permutations, n_samples)
             if y is not None:
                 for permutation in range(n_permutations):
-                    permuted_metric = self.metric(yhat[permutation], y, levels)
+                    permuted_metric = self.metric(yhat[permutation], y)
                     permutation_importance_metric[feature, permutation] = ((permuted_metric / base_metric) - 1) * 100
             else:
                 permutation_importance_metric[feature] = np.abs(yhat_base[None, :] - yhat).sum(1) / yhat_base.sum() * 100                
         
         return permutation_importance_metric
+    
+    def optimize_distribution(self, X, y, distributions=None, tree_correlations=None):
+        """
+        Find the distribution and tree correlation that best fits the data according to lowest CRPS score. The parameters
+        'distribution' and 'tree_correlation' of a PGBM model will be adjusted to the best values after running this script.
+        
+        This function returns the best found distribution and tree correlation.
+        
+        Example::
+            >> train_set = (X_train, y_train)
+            >> validation_set = (X_validation, y_validation)
+            >> model = PGBM()
+            >> model.train(train_set, objective, metric)
+            >> yhat_dist = model.optimize_distribution(X_validation, y_validation)
+        
+        Args:
+            X (array of [n_samples x n_features]): sample set for which to create 
+            the estimates/forecasts.
+            y (array of [n_samples]): ground truth for sample set X.
+            distributions (list of strings): optional, list containing distributions to choose from. Options are:
+                normal, studentt, laplace, logistic, lognormal, gamma, gumbel, weibull, negativebinomial, poisson.
+            tree_correlations (vector): optional, vector containing tree correlations to use in optimization procedure.
+        """                
+        # List of distributions and tree correlations
+        if distributions == None:
+            distributions = ['normal', 'laplace', 'logistic', 
+                             'gamma', 'gumbel', 'poisson']
+        if np.all(tree_correlations == None):
+            tree_correlations = np.arange(start=0, stop=0.2, step=0.01, dtype=np.float64)
+               
+        # Loop over choices
+        crps_best = np.inf
+        distribution_best = self.params['distribution']
+        tree_correlation_best = self.params['tree_correlation']
+        for distribution in distributions:
+            for tree_correlation in tree_correlations:
+                self.params['distribution'] = distribution
+                self.params['tree_correlation'] = tree_correlation
+                yhat_dist = self.predict_dist(X)
+                crps = np.mean(self.crps_ensemble(yhat_dist, y))
+                if self.params['verbose'] > 1:
+                    print(f'CRPS: {crps:.2f} (Distribution: {distribution}, Tree correlation: {tree_correlation:.3f})')     
+                if crps < crps_best:
+                    crps_best = crps
+                    distribution_best = distribution
+                    tree_correlation_best = tree_correlation
+        
+        # Set to best values
+        if self.params['verbose'] > 1:
+            print(f'Lowest CRPS: {crps_best:.4f} (Distribution: {distribution_best}, Tree correlation: {tree_correlation_best:.3f})')  
+        self.params['distribution'] = distribution_best
+        self.params['tree_correlation'] = tree_correlation_best
+        
+        return (distribution_best, tree_correlation_best)
     
 @njit(fastmath=True, parallel=True)
 def _leaf_prediction(gradient, hessian, node, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var):
@@ -600,10 +653,13 @@ def wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian
             current_grad = gradient[j]
             current_hess = hessian[j]
             Xc = X[i, j]
-            for k in range(n_bins):
-                idx = k <  Xc
-                Gl_t[thread_idx, i, k] += idx * current_grad
-                Hl_t[thread_idx, i, k] += idx * current_hess
+            k = 0
+            flag = (k <  Xc)
+            while flag:
+                Gl_t[thread_idx, i, k] += current_grad
+                Hl_t[thread_idx, i, k] += current_hess
+                k += 1
+                flag = (k <  Xc) 
 
 @njit(parallel=True, fastmath=True)
 def _split_decision_sample_parallel(X, gradient, hessian, n_bins):
@@ -633,9 +689,12 @@ def _split_decision_feature_parallel(X, gradient, hessian, n_bins):
             Xc = X[i, j]
             current_grad = gradient[j]
             current_hess = hessian[j]
-            for k in range(n_bins):
-                flag = (k < Xc)
-                Gl[i, k] += flag * current_grad
-                Hl[i, k] += flag * current_hess
+            k = 0
+            flag = (k <  Xc)
+            while flag:
+                Gl[i, k] += current_grad
+                Hl[i, k] += current_hess
+                k += 1
+                flag = (k <  Xc) 
     
     return Gl, Hl
