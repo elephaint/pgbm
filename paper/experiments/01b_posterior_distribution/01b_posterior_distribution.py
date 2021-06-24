@@ -53,8 +53,7 @@ params = {'min_split_gain':0,
       'lambda':1,
       'tree_correlation':0.03,
       'device':'gpu',
-      'output_device':'gpu',
-      'gpu_device_ids':(0,),
+      'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 n_forecasts = 1000

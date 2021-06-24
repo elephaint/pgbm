@@ -46,7 +46,6 @@ params = {'min_split_gain':0,
       'bagging_fraction':1,
       'seed':1,
       'lambda':1,
-      'tree_correlation':0.03,
       'split_parallel':'feature',
       'distribution':'normal'}
 n_forecasts = 1000
@@ -71,13 +70,13 @@ model.train(train_val_data, objective=objective, metric=rmseloss_metric, valid_s
 best_distribution, best_tree_correlation = model.optimize_distribution(X_val, y_val)
 #%% Train model on full dataset and evaluate base case + optimal choice of distribution and correlation hyperparameter
 # Set iterations to best iteration from validation set
-params['n_estimators'] = model.best_iteration + 1
+params['n_estimators'] = model.best_iteration
 # Retrain on full set   
 model = PGBM()
 model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
 #% Probabilistic predictions base case
 model.params['distribution'] = 'normal'
-model.params['tree_correlation'] = 0.03
+base_case_tree_correlation = model.params['tree_correlation']
 yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_old = np.mean(model.crps_ensemble(yhat_dist_pgbm, y_test))
@@ -88,5 +87,5 @@ yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_new = np.mean(model.crps_ensemble(yhat_dist_pgbm, y_test))  
 # Print scores
-print(f"Base case CRPS {crps_old:.2f}, distribution = normal, tree_correlation = 0.03")
+print(f"Base case CRPS {crps_old:.2f}, distribution = normal, tree_correlation = {base_case_tree_correlation}")
 print(f"Optimal CRPS {crps_new:.2f}, distribution = {model.params['distribution']}, tree_correlation = {model.params['tree_correlation']}")

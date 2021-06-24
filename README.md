@@ -6,7 +6,8 @@
 _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient boosting framework in Python based on PyTorch/Numba, developed by Airlab in Amsterdam. It provides the following advantages over existing frameworks:
 * Probabilistic regression estimates instead of only point estimates. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_bostonhousing_cpu.py))
 * Auto-differentiation of custom loss functions. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example08_bostonhousing_autodiff.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example10_covidhospitaladmissions.py))
-* Native (multi-)GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_bostonhousing_gpu.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example03_bostonhousing_gpu_multi.py))
+* Native GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_bostonhousing_gpu.py))
+* Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/))
 * Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example07_optimizeddistribution.py))
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
@@ -19,6 +20,7 @@ Run `pip install pgbm` from a terminal within a Python (virtual) environment of 
   * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_bostonhousing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
   * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_bostonhousing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
   * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example01_bostonhousing_cpu.py) to verify ability to train & predict on CPU with Numba backend.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example13_boston_dist.py) to verify ability to perform distributed CPU, GPU, multi-CPU and/or multi-GPU training.
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 * When using the Numba-backend, several functions need to be JIT-compiled. Hence, the first time you train a model using this backend it can take a bit longer.
 * To run the examples some additional packages such as `scikit-learn` or `matplotlib` are required; these should be installed separately via `pip` or  `conda`.
@@ -28,8 +30,9 @@ The core package has the following dependencies which should be installed separa
 
 ##### Torch backend #####
 * CUDA Toolkit matching your PyTorch distribution (https://developer.nvidia.com/cuda-toolkit)
-* PyTorch >= 1.7.0, with CUDA 11.0 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
+* PyTorch >= 1.8.0, with CUDA 10.2 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
 * PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but [open an issue](https://github.com/elephaint/pgbm/issues) if you find it still not working even after installing these dependencies. 
+* The CUDA device should have CUDA compute ability 6.x or higher.
 
 ##### Numba backend #####
 * Numba >= 0.53.1 (https://numba.readthedocs.io/en/stable/user/installing.html). 

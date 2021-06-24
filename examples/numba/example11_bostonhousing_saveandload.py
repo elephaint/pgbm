@@ -43,7 +43,7 @@ train_data = (X_train, y_train)
 model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
 model.save('model.pt')
-#%% Load model trained with PyTorch-CPU and predict with Numba backend.
+#%% Load model trained and predict.
 model_new = PGBM()
 model_new.load('model.pt')
 #% Point and probabilistic predictions

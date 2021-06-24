@@ -53,8 +53,7 @@ params = {'min_split_gain':0,
       'lambda':1,
       'tree_correlation':0.03,
       'device':'gpu',
-      'output_device':'gpu',
-      'gpu_device_ids':(0,),
+      'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 n_forecasts = 1000
@@ -92,7 +91,7 @@ for i, dataset in enumerate(datasets):
         validation_time = end - start
         print(f'Fold time: {validation_time:.2f}s')
         # Set iterations to best iteration
-        params['n_estimators'] = model.best_iteration + 1
+        params['n_estimators'] = model.best_iteration
         # Retrain on full set   
         print('Training...')
         model = PGBM()

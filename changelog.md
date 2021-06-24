@@ -1,3 +1,22 @@
+## v0.8 ##
+* Added `studentt` distribution to Numba backend (with `df=3`).
+* Added variance clipping to normal distribution of Numba backend.
+* Some Numba backend code rewriting.
+* JIT'ed `crps_ensemble` in Numba backend.
+* Fixed bug where Torch-backend could not read Numba-backend trained models.
+* Simpler bin calculation in Torch backend using torch.quantile.
+* Completely rewrote distributed training. There is now a separate pgbm version `pgbm_dist` that allows distributed training for multinode and multigpu training. This offers significant speedup over the previous dataparallel implementation within `pgbm`.
+* Changed default seed.
+* Bagging and feature subsampling is now only done in case these parameters are set different from their default values. This offers slight speedup for larger datasets.
+* Fixed bug with `min_data_in_leaf`.
+* Set default `tree_correlation` parameter to `log_10(n_samples_train) / 100` as per our paper.
+* Added checkpointing, allowing users to continue training a model.
+
+As of this version, the following is deprecated:
+* The hyperparameter `gpu_device_ids` is replaced by a hyperparameter `gpu_device_id`.
+* The vanilla `pgbm` package no longer offers parallel training; to perform parallel training `pgbm_dist` should be used.
+* The hyperparameter `output_device` has been deprecated. All training is always performed on the chosen `device`. For parallelization, use `pgbm_dist`. 
+
 ## v0.7 ##
 * Added `optimize_distribution` function to fit best distribution more easily.
 * Fixed bug in Numba backend Poisson distribution.

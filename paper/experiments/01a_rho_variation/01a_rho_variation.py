@@ -58,8 +58,7 @@ params = {'min_split_gain':0,
       'lambda':1,
       'tree_correlation':0.03,
       'device':'gpu',
-      'output_device':'cpu',
-      'gpu_device_ids':(0,),
+      'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 n_forecasts = 1000
@@ -100,7 +99,7 @@ for i, dataset in enumerate(datasets):
         crps_pgbm[i] = ps.crps_ensemble(y_val, yhat_dist_pgbm.cpu().T).mean()
         df_val = df_val.append({'method':method, 'dataset':dataset, 'fold':0, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rho': tree_correlation, 'crps_validation': crps_pgbm[i]}, ignore_index=True)
     # Set iterations to best iteration
-    params['n_estimators'] = model.best_iteration + 1
+    params['n_estimators'] = model.best_iteration
     # Retrain on full set   
     print('Training...')
     model = PGBM()

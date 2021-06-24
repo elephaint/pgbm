@@ -22,7 +22,6 @@ import torch
 from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
-import matplotlib.pyplot as plt
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, levels=None):
     gradient = (yhat - y)
@@ -36,29 +35,24 @@ def rmseloss_metric(yhat, y, levels=None):
     return loss
 #%% Load data
 X, y = load_boston(return_X_y=True)
-#%% Set parameters to train on GPU
-params = {'device': 'gpu',
-          'gpu_device_id': 0}
-#%% Train pgbm
+params = {'checkpoint': True}
+#%% Train pgbm and save
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 train_data = (X_train, y_train)
-# Train on set   
-model = PGBM()
+# Train on set 
+params['n_estimators'] = 50
+model = PGBM()  
 model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
+#%% Load checkpoint and continue training
+model_new = PGBM()
+model_new.load('checkpoint')
+params['checkpoint'] = False
+model_new.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
 #% Point and probabilistic predictions
-yhat_point = model.predict(X_test)
-yhat_dist = model.predict_dist(X_test)
+yhat_point = model_new.predict(X_test)
+yhat_dist = model_new.predict_dist(X_test)
 # Scoring
-rmse = model.metric(yhat_point.cpu(), y_test)
-crps = model.crps_ensemble(yhat_dist, y_test).mean()    
+crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
-print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Plot all samples
-plt.rcParams.update({'font.size': 22})
-plt.plot(y_test, 'o', label='Actual')
-plt.plot(yhat_point.cpu(), 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
-plt.legend()

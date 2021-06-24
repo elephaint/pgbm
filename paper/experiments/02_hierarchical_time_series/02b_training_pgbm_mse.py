@@ -85,8 +85,7 @@ params = {'min_split_gain':0,
           'early_stopping_rounds':20,
           'tree_correlation':0.03,
           'device':'gpu',
-          'output_device':'gpu',
-          'gpu_device_ids':(0,),
+          'gpu_device_id':0,
           'derivatives':'exact',
           'distribution':'normal'} 
 #%% Validation loop
@@ -120,7 +119,7 @@ X_test, y_test = X_test.drop(columns='date'), y_test.drop(columns='date')
 train_data = (X_train, y_train)
 test_data = (X_test, y_test)
 # Train
-params['n_estimators'] = model.best_iteration + 1
+params['n_estimators'] = model.best_iteration
 model = PGBM()
 start = time.perf_counter()  
 model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)

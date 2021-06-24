@@ -49,7 +49,6 @@ params = {'min_split_gain':0,
       'bagging_fraction':1,
       'seed':1,
       'lambda':1,
-      'tree_correlation':0.03,
       'split_parallel':'feature',
       'distribution':'normal'}
 

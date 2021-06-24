@@ -139,3 +139,4 @@ notes/
 *.model
 *.h5
 /benchmarks
+/pgbm_dist

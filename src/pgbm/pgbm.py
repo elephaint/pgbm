@@ -26,9 +26,8 @@
 #%% Import packages
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.nn.parallel as parallel
 import numpy as np
+import torch.distributed as dist
 from torch.autograd import grad
 from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, LogNormal, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
 from torch.utils.cpp_extension import load
@@ -36,56 +35,66 @@ from pathlib import Path
 import pickle
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(nn.Module):
-    def __init__(self):
+    def __init__(self, size=1, rank=0):
         super(PGBM, self).__init__()
+        self.cwd = Path().cwd()
+        self.world_size = size
+        self.rank = rank
+        if size > 1:
+            self.distributed = True
+        else:
+            self.distributed = False
     
     def _init_params(self, params):       
         self.params = {}
-        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation', 'max_leaves',
+        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
-                       'seed', 'device', 'output_device', 'gpu_device_ids', 'derivatives', 'distribution']
-        param_defaults = [0.0, 2, 0.1, 1.0, 0.03, 32, 256, 100, 2, 100, 1, 1, 0, 'cpu', 'cpu', (0,), 'exact', 'normal']
+                       'seed', 'device', 'gpu_device_id', 'derivatives', 'distribution','checkpoint']
+        param_defaults = [0.0, 2, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'cpu', 0, 'exact', 'normal', False]
         
         # Create gpu functions for split decision
         if 'device' in params:
             if params['device'] == 'gpu':
                 current_path = Path(__file__).parent.absolute()
-                parallelsum_kernel = load(name='parallelsum', sources=[f'{current_path}/parallelsum.cpp', f'{current_path}/parallelsum_kernel.cu'])
-                self.device_ids = params['gpu_device_ids'] if 'gpu_device_ids' in params else (0,)
-                params['gpu_device_ids'] = self.device_ids
-                max_bin = params['max_bin'] if 'max_bin' in params else 256
-                self.parallel_split_decision = parallel.replicate(_split_decision(max_bin, parallelsum_kernel), self.device_ids)
-                if 'output_device' in params:
-                    if params['output_device'] == 'gpu':
-                        output_id = params['gpu_device_ids'][0]
-                        self.output_device = torch.device(output_id)
-                    else:
-                        self.output_device = torch.device('cpu')
+                self.parallelsum_kernel = load(name='parallelsum', sources=[f'{current_path}/parallelsum.cpp', f'{current_path}/parallelsum_kernel.cu'])
+                if 'gpu_device_id' in params:
+                    self.device = torch.device(params['gpu_device_id'])
                 else:
-                    self.output_device = torch.device(0)
+                    self.device = torch.device(0)
             else:
-                self.output_device = torch.device('cpu')
+                self.device = torch.device('cpu')
         else: 
-            self.output_device = torch.device('cpu')
+            self.device = torch.device('cpu')
                    
         for i, param in enumerate(param_names):
             self.params[param] = params[param] if param in params else param_defaults[i]
             if param in ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation']:
-                self.params[param] = torch.tensor(self.params[param], device=self.output_device, dtype=torch.float32)
+                self.params[param] = torch.tensor(self.params[param], device=self.device, dtype=torch.float32)
                 
+        self.params['min_data_in_leaf'] = torch.clamp(self.params['min_data_in_leaf'], 2)
         # Set some additional params
         self.params['max_nodes'] = self.params['max_leaves'] - 1
-        torch.manual_seed(self.params['seed'])
+        self.rng = torch.Generator()
+        self.rng.manual_seed(self.params['seed'])
         self.epsilon = 1.0e-4
 
     def _create_feature_bins(self, X):
         # Create array that contains the bins
         max_bin = self.params['max_bin']
         bins = torch.zeros((X.shape[1], max_bin), device=X.device)
+        quantiles = torch.arange(1, max_bin + 1, device=X.device) / (max_bin + 1)
         # For each feature, create max_bins based on frequency bins. 
         for i in range(X.shape[1]):
-            xs = X[:, i].sort()[0]
-            current_bin = torch.unique(F.interpolate(xs[None, None, :], max_bin, mode='linear', align_corners=False).squeeze())
+            xs = X[:, i]
+            if self.distributed:
+                current_bin = torch.quantile(xs, quantiles)
+                # Synchronize across processes
+                all_bins = torch.zeros((self.world_size, max_bin), dtype=torch.float32, device=X.device)
+                all_bins[self.rank] = current_bin
+                dist.all_reduce(all_bins, op=dist.ReduceOp.SUM)
+                current_bin = torch.unique(torch.quantile(all_bins, quantiles))     
+            else:
+                current_bin = torch.unique(torch.quantile(xs, quantiles))
             # A bit inefficiency created here... some features usually have less than max_bin values (e.g. 1/0 indicator features). 
             bins[i, :len(current_bin)] = current_bin
             bins[i, len(current_bin):] = current_bin.max()
@@ -109,15 +118,25 @@ class PGBM(nn.Module):
 
     def _leaf_prediction(self, gradient, hessian, node, estimator):
         # Empirical mean
-        gradient_mean = gradient.mean()
-        hessian_mean = hessian.mean()
-        # Empirical variance
-        N = len(gradient)
+        gradient_sum = gradient.sum()
+        hessian_sum = hessian.sum()
+        N = torch.tensor(gradient.shape[0], device=gradient.device, dtype=torch.float32)       
+        if self.distributed:
+            dist.all_reduce(gradient_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(hessian_sum, op=dist.ReduceOp.SUM)
+            dist.all_reduce(N, op=dist.ReduceOp.SUM)
+        gradient_mean = gradient_sum / N
+        hessian_mean = hessian_sum / N   
+        # Empirical variance and covariance
         factor = 1 / (N - 1)
         gradient_variance = factor * ((gradient - gradient_mean)**2).sum()
         hessian_variance = factor * ((hessian - hessian_mean)**2).sum()
-        # Empirical covariance
         covariance = factor * ((gradient - gradient_mean)*(hessian - hessian_mean)).sum()
+        if self.distributed:
+            # [Synchronize gradients and hessian variances and covariance]
+            dist.all_reduce(gradient_variance, op=dist.ReduceOp.SUM)
+            dist.all_reduce(hessian_variance, op=dist.ReduceOp.SUM)
+            dist.all_reduce(covariance, op=dist.ReduceOp.SUM)       
         # Mean and variance of the leaf prediction
         lambda_scaled = self.params['lambda'] / N
         mu = gradient_mean / ( hessian_mean + lambda_scaled) - covariance / (hessian_mean + lambda_scaled)**2 + (hessian_variance * gradient_mean) / (hessian_mean + lambda_scaled)**3
@@ -132,36 +151,50 @@ class PGBM(nn.Module):
     
     def _create_tree(self, X, gradient, hessian, estimator):
         # Set start node and start leaf index
-        self.leaf_idx = 0
+        self.leaf_idx = torch.tensor(0, dtype=torch.int64, device=X.device)
         self.node_idx = 0
         node = 1
         n_features = X.shape[0]
-        n_samples = X.shape[1]
-        sample_features = torch.randperm(n_features, device=X.device, dtype=torch.int64)[:self.feature_fraction]
-        Xe = X[sample_features]
-        drange = torch.arange(self.params['max_bin'], device=X.device);
+        n_samples = torch.tensor(X.shape[1], device=X.device)
+        # Synchronize total samples in node for feature importance
+        if self.distributed:
+            dist.all_reduce(n_samples, op=dist.ReduceOp.SUM)
+        # Choose random subset of features
+        if self.params['feature_fraction'] < 1:
+            sample_features = torch.randperm(n_features, device=X.device, dtype=torch.int64, generator=self.rng)[:self.feature_fraction]
+            Xe = X[sample_features]
+        else:
+            sample_features = torch.arange(n_features, device=X.device, dtype=torch.int64)
+            Xe = X
         # Create tree
+        drange = torch.arange(self.params['max_bin'], device=X.device);
         while (self.leaf_idx < self.params['max_leaves']):
             split_node = self.train_nodes == node
             # Only create node if there are samples in it
-            if split_node.any():
+            split_any = torch.any(split_node).float()
+            if self.distributed:
+                dist.all_reduce(split_any, op=dist.ReduceOp.SUM)
+            if split_any > 0:
                 # Choose feature subset
                 X_node = Xe[:, split_node]
                 gradient_node = gradient[split_node]
                 hessian_node = hessian[split_node]
                 # Compute split decision, parallelize across GPUs if required
                 if self.params['device'] == 'gpu':
-                    inputs = parallel.scatter((X_node.T, gradient_node, hessian_node), self.device_ids)
-                    outputs = parallel.parallel_apply(self.parallel_split_decision, inputs)
-                    Gl, Hl = parallel.gather(outputs, self.device_ids[0])
-                    Gl, Hl = Gl.sum(0).to(self.output_device), Hl.sum(0).to(self.output_device)
+                    Gl, Hl = self.parallelsum_kernel.split_decision(X_node, gradient_node, hessian_node, self.params['max_bin'])
                 else:
                     left_idx = torch.gt(X_node.unsqueeze(-1), drange).float();
                     Gl = torch.einsum("i, jik -> jk", gradient_node, left_idx);
                     Hl = torch.einsum("i, jik -> jk", hessian_node, left_idx);
-                # Comput split_gain
                 G = gradient_node.sum()
                 H = hessian_node.sum()
+                # Synchronize
+                if self.distributed:
+                    dist.all_reduce(Gl, op=dist.ReduceOp.SUM)
+                    dist.all_reduce(Hl, op=dist.ReduceOp.SUM)
+                    dist.all_reduce(G, op=dist.ReduceOp.SUM)
+                    dist.all_reduce(H, op=dist.ReduceOp.SUM)
+                # Compute split_gain                
                 split_gain_tot = (Gl * Gl) / (Hl + self.params['lambda']) + (G - Gl)*(G - Gl) / (H - Hl + self.params['lambda']) - (G * G) / (H + self.params['lambda'])
                 split_gain = split_gain_tot.max()      
                 # Split if split_gain exceeds minimum
@@ -172,14 +205,24 @@ class PGBM(nn.Module):
                     split_left = (Xe[split_feature_sample] > split_bin).squeeze()
                     split_right = ~split_left * split_node
                     split_left *= split_node
+                    split_left_sum = split_left.sum()
+                    split_right_sum = split_right.sum()
+                     # Synchronize
+                    if self.distributed:
+                        dist.all_reduce(split_left_sum,  op=dist.ReduceOp.SUM)
+                        dist.all_reduce(split_right_sum,  op=dist.ReduceOp.SUM)
                     # Split when enough data in leafs                        
-                    if (split_left.sum() > self.params['min_data_in_leaf']) & (split_right.sum() > self.params['min_data_in_leaf']):
+                    if (split_left_sum >= self.params['min_data_in_leaf']) & (split_right_sum >= self.params['min_data_in_leaf']):
                         # Save split information
                         self.nodes_idx[estimator, self.node_idx] = node
                         self.nodes_split_feature[estimator, self.node_idx] = sample_features[split_feature_sample] 
                         self.nodes_split_bin[estimator, self.node_idx] = split_bin
                         self.node_idx += 1
-                        self.feature_importance[sample_features[split_feature_sample]] += split_gain * X_node.shape[1] / n_samples 
+                        X_node_samples = torch.tensor(X_node.shape[1], device=X_node.device)
+                        # Synchronize
+                        if self.distributed:
+                            dist.all_reduce(X_node_samples, op=dist.ReduceOp.SUM)
+                        self.feature_importance[sample_features[split_feature_sample]] += split_gain * X_node_samples / n_samples 
                         # Assign next node to samples if next node does not exceed max n_leaves
                         criterion = 2 * (self.params['max_nodes'] - self.node_idx + 1)
                         n_leaves_old = self.leaf_idx
@@ -198,10 +241,20 @@ class PGBM(nn.Module):
                     
             # Choose next node (based on breadth-first)
             next_nodes = self.train_nodes[self.train_nodes > node]
-            if next_nodes.nelement() == 0:
+            n_elements_next_nodes = torch.tensor(next_nodes.nelement(), device=X.device)
+            if self.distributed:
+                dist.barrier()
+                dist.all_reduce(n_elements_next_nodes, op=dist.ReduceOp.SUM)
+            if n_elements_next_nodes == 0:
                 break
             else:
-                node = next_nodes.min()
+                if next_nodes.nelement() == 0:
+                    node = torch.tensor(10000000000, device = X.device, dtype=torch.int64)
+                else: 
+                    node = next_nodes.min()
+                if self.distributed:
+                    # Synchronize next node choice
+                    dist.all_reduce(node, op=dist.ReduceOp.MIN)                    
                                      
     def _predict_tree(self, X, mu, variance, estimator):
         # Get prediction for a single tree
@@ -237,7 +290,7 @@ class PGBM(nn.Module):
                 # Split node
                 split_left = (X[current_feature] > current_bin).squeeze()
                 split_right = ~split_left * split_node
-                split_left = split_left * split_node
+                split_left *= split_node
                 # Check if children are leaves
                 leaf_idx_left = torch.eq(2 * node, leaves_idx)
                 leaf_idx_right = torch.eq(2 * node + 1, leaves_idx)
@@ -286,20 +339,22 @@ class PGBM(nn.Module):
             # Split node
             split_left = (X[current_features] > current_bins).T
             split_right = ~split_left * split_node
-            split_left = split_left * split_node
+            split_left *= split_node
             # Check if children are leaves
             leaf_idx_left = torch.eq(2 * node, self.leaves_idx)
             leaf_idx_right = torch.eq(2 * node + 1, self.leaves_idx)
             # Update mu and variance with left leaf prediction
             mu += split_left * (self.leaves_mu * leaf_idx_left).sum(1)
             variance += split_left * (self.leaves_var * leaf_idx_left).sum(1)
-            predictions += split_left * leaf_idx_left.sum(1)
-            nodes_predict += (1 - leaf_idx_left.sum(1)) * split_left * node
+            sum_left = leaf_idx_left.sum(1)
+            predictions += split_left * sum_left
+            nodes_predict += (1 - sum_left) * split_left * node
             # Update mu and variance with right leaf prediction
             mu += split_right * (self.leaves_mu * leaf_idx_right).sum(1)
             variance += split_right * (self.leaves_var * leaf_idx_right).sum(1)
-            predictions += split_right * leaf_idx_right.sum(1)
-            nodes_predict += ( (1  - leaf_idx_right.sum(1)) * split_right * (node + 1))
+            sum_right = leaf_idx_right.sum(1)
+            predictions += split_right * sum_right
+            nodes_predict += (1  - sum_right) * split_right * (node + 1)
 
         # Each prediction only for the amount of learning rate in the ensemble
         lr = self.params['learning_rate']
@@ -322,9 +377,9 @@ class PGBM(nn.Module):
     def _create_X_splits(self, X):
         # Pre-compute split decisions for Xtrain
         if (self.params['max_bin'] <= 32) or (self.params['max_bin'] == 64) or (self.params['max_bin'] == 128) or (self.params['max_bin'] == 256):
-            X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.output_device, dtype=torch.uint8)
+            X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.device, dtype=torch.uint8)
         else:
-            X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.output_device, dtype=torch.int16)
+            X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.device, dtype=torch.int16)
         
         for i in range(self.params['max_bin']):
             X_splits += (X > self.bins[:, i]).T
@@ -337,7 +392,7 @@ class PGBM(nn.Module):
         elif type(array) == torch.Tensor:
             array = array.float()
         
-        return array.to(self.output_device)
+        return array.to(self.device)
     
     def train(self, train_set, objective, metric, params=None, valid_set=None, levels_train=None, levels_valid=None):
         """
@@ -381,25 +436,55 @@ class PGBM(nn.Module):
         # Initialize predictions
         self.n_features = X_train.shape[1]
         self.n_samples = X_train.shape[0]
-        self.yhat_0 = y_train.mean()
-        yhat_train = self.yhat_0.repeat(self.n_samples).to(self.output_device)
+        n_samples = torch.tensor(X_train.shape[0], device=X_train.device)
+        y_train_sum = y_train.sum()
+        # Synchronize
+        if self.distributed:
+            dist.all_reduce(n_samples, op=dist.ReduceOp.SUM)
+            dist.all_reduce(y_train_sum, op=dist.ReduceOp.SUM) 
+        if 'tree_correlation' in params:
+            self.params['tree_correlation'] = torch.tensor(params['tree_correlation'], device=self.device, dtype=torch.float32)
+        else:
+            self.params['tree_correlation'] = torch.tensor(np.log10(self.n_samples) / 100, device=self.device, dtype=torch.float32)
         # Fractions of features and samples
-        self.feature_fraction = torch.tensor(self.params['feature_fraction'] * self.n_features, device = self.output_device, dtype=torch.int64).clamp(1, self.n_features)
-        self.bagging_fraction = torch.tensor(self.params['bagging_fraction'] * self.n_samples, device = self.output_device, dtype=torch.int64).clamp(1, self.n_samples)
-        # Create feature bins
-        self.bins = self._create_feature_bins(X_train)
+        self.feature_fraction = torch.tensor(self.params['feature_fraction'] * self.n_features, device = self.device, dtype=torch.int64).clamp(1, self.n_features)
+        self.bagging_fraction = torch.tensor(self.params['bagging_fraction'] * self.n_samples, device = self.device, dtype=torch.int64).clamp(1, self.n_samples)
         # Pre-allocate arrays
-        self.train_nodes = torch.ones(self.bagging_fraction, dtype=torch.int64, device = self.output_device)
-        self.nodes_idx = torch.zeros((self.params['n_estimators'], self.params['max_nodes']), dtype=torch.int64, device = self.output_device)
-        self.nodes_split_feature = torch.zeros((self.params['n_estimators'], self.params['max_nodes']), dtype=torch.int64, device = self.output_device)
-        self.nodes_split_bin = torch.zeros((self.params['n_estimators'], self.params['max_nodes']), dtype=torch.int64, device = self.output_device)
-        self.leaves_idx = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.int64, device = self.output_device)
-        self.leaves_mu = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.float32, device = self.output_device)
-        self.leaves_var = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.float32, device = self.output_device)
-        self.feature_importance = torch.zeros(self.n_features, dtype=torch.float32, device=self.output_device)
+        nodes_idx = torch.zeros((self.params['n_estimators'], self.params['max_nodes']), dtype=torch.int64, device = self.device)
+        nodes_split_feature = torch.zeros_like(nodes_idx)
+        nodes_split_bin = torch.zeros_like(nodes_idx)
+        leaves_idx = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.int64, device = self.device)
+        leaves_mu = torch.zeros((self.params['n_estimators'], self.params['max_leaves']), dtype=torch.float32, device = self.device)
+        leaves_var = torch.zeros_like(leaves_mu)
+        # Continue training from existing model or train new model, depending on whether a model was loaded.
+        if not hasattr(self, 'yhat_0'):
+            self.yhat_0 = y_train_sum / n_samples                           
+            self.best_iteration = 0
+            yhat_train = self.yhat_0.repeat(self.n_samples).to(self.device)
+            self.bins = self._create_feature_bins(X_train)
+            self.feature_importance = torch.zeros(self.n_features, dtype=torch.float32, device=self.device)
+            self.nodes_idx = nodes_idx
+            self.nodes_split_feature = nodes_split_feature
+            self.nodes_split_bin = nodes_split_bin
+            self.leaves_idx = leaves_idx
+            self.leaves_mu = leaves_mu
+            self.leaves_var = leaves_var
+            start_iteration = 0
+            new_model = True
+        else:
+            yhat_train = self.predict(X_train, parallel=False)
+            self.nodes_idx = torch.cat((self.nodes_idx, nodes_idx))
+            self.nodes_split_feature = torch.cat((self.nodes_split_feature, nodes_split_feature))
+            self.nodes_split_bin = torch.cat((self.nodes_split_bin, nodes_split_bin))
+            self.leaves_idx = torch.cat((self.leaves_idx, leaves_idx))
+            self.leaves_mu = torch.cat((self.leaves_mu, leaves_mu))
+            self.leaves_var = torch.cat((self.leaves_var, leaves_var))
+            start_iteration = self.best_iteration
+            new_model = False
+        # Initialize
+        self.train_nodes = torch.ones(self.bagging_fraction, dtype=torch.int64, device = self.device)
         self.dist = False
         self.n_forecasts_dist = 1
-        self.best_iteration = 0
         # Pre-compute split decisions for X_train
         X_train_splits = self._create_X_splits(X_train)
         # Initialize validation
@@ -408,46 +493,68 @@ class PGBM(nn.Module):
             validate = True
             early_stopping = 0
             X_validate, y_validate = self._convert_array(valid_set[0]), self._convert_array(valid_set[1]).squeeze()
-            yhat_validate = self.yhat_0.repeat(y_validate.shape[0])
-            self.best_score = torch.tensor(float('inf'), device = self.output_device, dtype=torch.float32)
+            if new_model:
+                yhat_validate = self.yhat_0.repeat(y_validate.shape[0])
+                self.best_score = torch.tensor(float('inf'), device = self.device, dtype=torch.float32)
+            else:
+                yhat_validate = self.predict(X_validate)
+                validation_metric = metric(yhat_validate, y_validate, levels_valid)
+                if self.distributed:
+                    dist.all_reduce(validation_metric, op=dist.ReduceOp.SUM)
+                    validation_metric /= self.world_size
+                self.best_score = validation_metric
             # Pre-compute split decisions for X_validate
             X_validate_splits = self._create_X_splits(X_validate)
 
         # Retrieve initial loss and gradient
         gradient, hessian = self.objective(yhat_train, y_train, levels_train)      
         # Loop over estimators
-        for estimator in range(self.params['n_estimators']):
+        for estimator in range(start_iteration, self.params['n_estimators'] + start_iteration):
             # Retrieve bagging batch
-            samples = torch.randperm(self.n_samples, device=self.output_device)[:self.bagging_fraction]
-            # Create tree
-            self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator)
+            if self.params['bagging_fraction'] < 1:
+                samples = torch.randperm(self.n_samples, device=self.device)[:self.bagging_fraction]
+                # Create tree
+                self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator)
+            else:
+                self._create_tree(X_train_splits, gradient, hessian, estimator)                
             # Get predictions for all samples
             yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator)
             # Compute new gradient and hessian
             gradient, hessian = self.objective(yhat_train, y_train, levels_train)
             # Compute metric
             train_metric = metric(yhat_train, y_train, levels_train)
+            # Synchronize across processes: we just add all process metrics and take the mean, this is a simplification
+            if self.distributed:
+                dist.all_reduce(train_metric, op=dist.ReduceOp.SUM)
+                train_metric /= self.world_size
             # Reset train nodes
             self.train_nodes.fill_(1)
             # Validation statistics
             if validate:
                 yhat_validate, _ =  self._predict_tree(X_validate_splits, yhat_validate, yhat_validate*0., estimator) 
                 validation_metric = metric(yhat_validate, y_validate, levels_valid)
-                if (self.params['verbose'] > 1):
-                    print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
+                if self.distributed:
+                    dist.all_reduce(validation_metric, op=dist.ReduceOp.SUM)
+                    validation_metric /= self.world_size
+                if (self.params['verbose'] > 1) & (self.rank == 0):
+                    print(f"Estimator {estimator}/{self.params['n_estimators'] + start_iteration}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
                 if validation_metric < self.best_score:
                     self.best_score = validation_metric
-                    self.best_iteration = estimator
+                    self.best_iteration = estimator + 1
                     early_stopping = 1
                 else:
                     early_stopping += 1
                     if early_stopping == self.params['early_stopping_rounds']:
                         break
             else:
-                if (self.params['verbose'] > 1):
-                    print(f"Estimator {estimator}/{self.params['n_estimators']}, Train metric: {train_metric:.4f}")
-                self.best_iteration = estimator
+                if (self.params['verbose'] > 1) & (self.rank == 0):
+                    print(f"Estimator {estimator}/{self.params['n_estimators'] + start_iteration}, Train metric: {train_metric:.4f}")
+                self.best_iteration = estimator + 1
                 self.best_score = 0
+            
+            # Save current model checkpoint to current working directory
+            if self.params['checkpoint']:
+                self.save(f'{self.cwd}\checkpoint')
             
         # Truncate tree arrays
         self.leaves_idx             = self.leaves_idx[:self.best_iteration]
@@ -690,12 +797,12 @@ class PGBM(nn.Module):
         params['min_split_gain'] = params['min_split_gain'].cpu().numpy()
         params['min_data_in_leaf'] = params['min_data_in_leaf'].cpu().numpy()
 
-        state_dict = {'nodes_idx': self.nodes_idx.cpu().numpy(),
-                      'nodes_split_feature':self.nodes_split_feature.cpu().numpy(),
-                      'nodes_split_bin':self.nodes_split_bin.cpu().numpy(),
-                      'leaves_idx':self.leaves_idx.cpu().numpy(),
-                      'leaves_mu':self.leaves_mu.cpu().numpy(),
-                      'leaves_var':self.leaves_var.cpu().numpy(),
+        state_dict = {'nodes_idx': self.nodes_idx[:self.best_iteration].cpu().numpy(),
+                      'nodes_split_feature':self.nodes_split_feature[:self.best_iteration].cpu().numpy(),
+                      'nodes_split_bin':self.nodes_split_bin[:self.best_iteration].cpu().numpy(),
+                      'leaves_idx':self.leaves_idx[:self.best_iteration].cpu().numpy(),
+                      'leaves_mu':self.leaves_mu[:self.best_iteration].cpu().numpy(),
+                      'leaves_var':self.leaves_var[:self.best_iteration].cpu().numpy(),
                       'feature_importance':self.feature_importance.cpu().numpy(),
                       'best_iteration':self.best_iteration,
                       'params':params,
@@ -737,14 +844,14 @@ class PGBM(nn.Module):
         self.feature_importance  = torch_float(state_dict['feature_importance'])
         self.best_iteration  = state_dict['best_iteration']
         self.params  = state_dict['params']
-        self.params['learning_rate'] = torch_float(self.params['learning_rate'])
-        self.params['tree_correlation'] = torch_float(self.params['tree_correlation'])
-        self.params['lambda'] = torch_float(self.params['lambda'])
-        self.params['min_split_gain'] = torch_float(self.params['min_split_gain'])
-        self.params['min_data_in_leaf'] = torch_float(self.params['min_data_in_leaf'])
-        self.yhat_0  = torch_float(state_dict['yhat0'])
+        self.params['learning_rate'] = torch_float(np.array(self.params['learning_rate']))
+        self.params['tree_correlation'] = torch_float(np.array(self.params['tree_correlation']))
+        self.params['lambda'] = torch_float(np.array(self.params['lambda']))
+        self.params['min_split_gain'] = torch_float(np.array(self.params['min_split_gain']))
+        self.params['min_data_in_leaf'] = torch_float(np.array(self.params['min_data_in_leaf']))
+        self.yhat_0  = torch_float(np.array(state_dict['yhat0']))
         self.bins = torch_float(state_dict['bins'])
-        self.output_device = device
+        self.device = device
         
     def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
         """
@@ -845,7 +952,7 @@ class PGBM(nn.Module):
                 self.params['tree_correlation'] = tree_correlation
                 yhat_dist = self.predict_dist(X)
                 crps = self.crps_ensemble(yhat_dist, y).mean()
-                if self.params['verbose'] > 1:
+                if (self.params['verbose'] > 1) & (self.rank == 0):
                     print(f'CRPS: {crps:.2f} (Distribution: {distribution}, Tree correlation: {tree_correlation:.3f})')     
                 if crps < crps_best:
                     crps_best = crps
@@ -853,21 +960,9 @@ class PGBM(nn.Module):
                     tree_correlation_best = tree_correlation
         
         # Set to best values
-        if self.params['verbose'] > 1:
+        if (self.params['verbose'] > 1) & (self.rank == 0):
             print(f'Lowest CRPS: {crps_best:.4f} (Distribution: {distribution_best}, Tree correlation: {tree_correlation_best:.3f})')  
         self.params['distribution'] = distribution_best
         self.params['tree_correlation'] = tree_correlation_best
         
-        return (distribution_best, tree_correlation_best)
-        
-# Create split decision in module for parallelization                
-class _split_decision(nn.Module):
-    def __init__(self, max_bin, parallelsum_kernel):
-        super(_split_decision, self).__init__()
-        self.max_bin = max_bin
-        self.parallelsum_kernel = parallelsum_kernel
-    
-    def forward(self, X, gradient, hessian):
-        Gl, Hl = self.parallelsum_kernel.split_decision(X.T, gradient, hessian, self.max_bin)
-        
-        return Gl.unsqueeze(0), Hl.unsqueeze(0)       
+        return (distribution_best, tree_correlation_best)   

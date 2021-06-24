@@ -132,8 +132,7 @@ params = {'min_split_gain':0,
           'early_stopping_rounds':20,
           'tree_correlation':0.03,
           'device':'gpu',
-          'output_device':'gpu',
-          'gpu_device_ids':(device.index,),
+          'gpu_device_id':device.index,
           'derivatives':'approx',
           'distribution':'normal'} 
 #%% Validation loop
@@ -161,7 +160,7 @@ levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['date']).valu
 levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['dept_id_enc']).values).bool().to(device))
 levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['cat_id_enc']).values).bool().to(device))
 # Train. 
-params['n_estimators'] = model.best_iteration + 1
+params['n_estimators'] = model.best_iteration
 model = PGBM()
 start = time.perf_counter()  
 model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)

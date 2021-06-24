@@ -41,11 +41,11 @@ data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, random_state=0)
 X_train_val, X_val, y_train_val, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
 #%% Parameters
-base_estimators = 500
+base_estimators = 2000
 params = {'min_split_gain':0,
       'min_data_in_leaf':1,
-      'max_leaves':32,
-      'max_bin':256,
+      'max_leaves':8,
+      'max_bin':64,
       'learning_rate':0.1,
       'n_estimators':base_estimators,
       'verbose':2,
@@ -54,10 +54,8 @@ params = {'min_split_gain':0,
       'bagging_fraction':0.1,
       'seed':1,
       'lambda':1,
-      'tree_correlation':0.03,
       'device':'gpu',
-      'output_device':'gpu',
-      'gpu_device_ids':(0,),
+      'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 #%% PGBM

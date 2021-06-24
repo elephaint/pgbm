@@ -213,7 +213,6 @@ params = {'min_split_gain':0,
       'lambda':1,
       'tree_correlation':0.0,
       "device": DEVICE,
-      'output_device':'gpu',
       'derivatives':'approx',
       'distribution':'poisson'} 
 

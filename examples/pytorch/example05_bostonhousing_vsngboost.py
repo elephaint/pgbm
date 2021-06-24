@@ -52,10 +52,7 @@ params = {'min_split_gain':0,
       'bagging_fraction':1,
       'seed':1,
       'lambda':1,
-      'tree_correlation':0.03,
       'device':'cpu',
-      'output_device':'cpu',
-      'gpu_device_ids':(0,),
       'derivatives':'exact',
       'distribution':'normal'}
 #%% Train pgbm vs NGBoost
@@ -83,7 +80,7 @@ for i in range(n_splits):
     end = time.perf_counter()
     print(f'Fold time: {end - start:.2f}s')
     # Set iterations to best iteration
-    params['n_estimators'] = model.best_iteration + 1
+    params['n_estimators'] = model.best_iteration
     # Retrain on full set   
     print('PGBM Training on full dataset...')
     model = PGBM()

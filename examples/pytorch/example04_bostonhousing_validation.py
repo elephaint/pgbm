@@ -38,7 +38,7 @@ def rmseloss_metric(yhat, y, levels=None):
 X, y = load_boston(return_X_y=True)
 #%% Parameters
 params = {'min_split_gain':0,
-      'min_data_in_leaf':1,
+      'min_data_in_leaf':2,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,
@@ -51,8 +51,7 @@ params = {'min_split_gain':0,
       'lambda':1,
       'tree_correlation':0.03,
       'device':'gpu',
-      'output_device':'gpu',
-      'gpu_device_ids':(0,),
+      'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 
@@ -76,7 +75,7 @@ for i in range(n_splits):
     model = PGBM()
     model.train(train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
     # Set iterations to best iteration
-    params['n_estimators'] = model.best_iteration + 1
+    params['n_estimators'] = model.best_iteration
     # Retrain on full set   
     print('PGBM Training on full dataset...')
     model = PGBM()
