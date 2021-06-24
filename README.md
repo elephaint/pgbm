@@ -7,7 +7,7 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 * Probabilistic regression estimates instead of only point estimates. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_bostonhousing_cpu.py))
 * Auto-differentiation of custom loss functions. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example08_bostonhousing_autodiff.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example10_covidhospitaladmissions.py))
 * Native GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_bostonhousing_gpu.py))
-* Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/))
+* Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/))
 * Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example07_optimizeddistribution.py))
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).

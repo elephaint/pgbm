@@ -16,7 +16,7 @@ This folder contains examples of PGBM. The examples illustrate the following:
 Note: to use the `higgs` dataset in any of the examples, download [here](https://archive.ics.uci.edu/ml/datasets/HIGGS), unpack and save `HIGGS.csv` to your local working directory.
 
 ## Distributed CPU training ##
-The examples should be run from a terminal from each node, i.e. run `python [filename].py`. 
+The examples should be run from a terminal from each node, i.e. run `python [filename].py`. Each node should satisfy all the dependencies to run PGBM.
 
 ### Single node, CPU training ###
 Note that this is equivalent to non-distributed training. 
@@ -49,8 +49,8 @@ For example when training on 4 GPUs:
 
 ### Multiple nodes, multiple GPUs ###
 * Example 1. For example when training on two nodes with 8 GPUs each. The master node is located at IP address `192.168.0.1` (this is a mock example) and the port is `29500`.
-  * On first (master) node: `python example01_boston_dist.py -d gpu -p 8 -n 2 -nr 0 --MASTER_ADDR 192.168.0.1 --MASTER_PORT 29500`.
-  * On second node: `python example01_boston_dist.py -d gpu -p 8 -n 2 -nr 1 --MASTER_ADDR 192.168.0.1 --MASTER_PORT 29500`.
+  * On first (master) node: `python example13_boston_dist.py -d gpu -p 8 -n 2 -nr 0 --MASTER_ADDR 192.168.0.1 --MASTER_PORT 29500`.
+  * On second node: `python example13_boston_dist.py -d gpu -p 8 -n 2 -nr 1 --MASTER_ADDR 192.168.0.1 --MASTER_PORT 29500`.
 * Example 2. For example when training on four nodes with 2 GPUs each. 
   * On first (master) node: `python example14_higgs_dist.py -d gpu -p 2 -n 4 -nr 0 --MASTER_ADDR 192.168.0.1 --MASTER_PORT 29500`.
   * On second node: `python example14_higgs_dist.py -d gpu -p 2 -n 4 -nr 1 --MASTER_ADDR 192.168.0.1 --MASTER_PORT 29500`.
