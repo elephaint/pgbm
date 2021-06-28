@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
 	name="pgbm",
-	version="0.8.1",
+	version="0.9",
 	description="Probabilistic Gradient Boosting Machines in Pytorch",
 	author="Olivier Sprangers",
 	author_email="o.r.sprangers@uva.nl",
@@ -17,8 +17,8 @@ setuptools.setup(
 	package_dir={"pgbm": "src/pgbm",
               "pgbm_nb": "src/pgbm_nb"},
     classifiers=[
-         "Programming Language :: Python :: 3.8",
+         "Programming Language :: Python :: 3.7",
          "License :: OSI Approved :: Apache Software License",
          "Operating System :: OS Independent"],
-    python_requires='>=3.8',
+    python_requires='>=3.7',
     zip_safe=False)

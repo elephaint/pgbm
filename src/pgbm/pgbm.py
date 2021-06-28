@@ -52,7 +52,7 @@ class PGBM(nn.Module):
                        'seed', 'device', 'gpu_device_id', 'derivatives', 'distribution','checkpoint']
         param_defaults = [0.0, 2, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'cpu', 0, 'exact', 'normal', False]
         
-        # Create gpu functions for split decision
+        # Choose device
         if 'device' in params:
             if params['device'] == 'gpu':
                 current_path = Path(__file__).parent.absolute()
@@ -61,6 +61,11 @@ class PGBM(nn.Module):
                     self.device = torch.device(params['gpu_device_id'])
                 else:
                     self.device = torch.device(0)
+            # This is experimental and has been tested only on Google Colab
+            # See this: https://colab.research.google.com/github/pytorch/xla/blob/master/contrib/colab/getting-started.ipynb
+            elif params['device'] == 'tpu':
+                import torch_xla.core.xla_model as xm
+                self.device = xm.xla_device()
             else:
                 self.device = torch.device('cpu')
         else: 

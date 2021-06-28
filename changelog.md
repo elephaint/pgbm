@@ -1,3 +1,8 @@
+## v0.9 ##
+* Experimental TPU support for Google Cloud.
+* Python 3.7 compatibility.
+* Jupyter Notebook examples.
+
 ## v0.8 ##
 * Added `studentt` distribution to Numba backend (with `df=3`).
 * Added variance clipping to normal distribution of Numba backend.

@@ -1,7 +1,7 @@
 # Examples #
 
 This folder contains examples of PGBM. The examples illustrate the following:
-* Examples 1-2: How to train PGBM: on CPU and GPU
+* Examples 1-3: How to train PGBM: on CPU, GPU and TPU (TPU is experimental, use Colab).
 * Example 4: How to train PGBM using a validation loop.
 * Examples 5-6: How PGBM compares to other methods such as NGBoost and LightGBM.
 * Example 7: How the choice of output distribution can be optimized after training.
