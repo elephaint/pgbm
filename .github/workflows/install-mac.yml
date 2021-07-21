@@ -1,0 +1,52 @@
+name: install-on-mac
+on: [push]
+jobs:
+  install-cpu-torch:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - run: pip install pgbm
+      - run: pip install scikit-learn matplotlib
+      - run: pip install torch torchvision torchaudio
+      - run: python examples/pytorch/example01_bostonhousing_cpu.py
+  install-cpu-numba:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - run: pip install pgbm
+      - run: pip install scikit-learn matplotlib
+      - run: pip install numba
+      - run: python examples/numba/example01_bostonhousing_cpu.py
+  # install-gpu-torch:
+  #   runs-on: [self-hosted,gpu]
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - name: Set up Python 3.8
+  #       uses: actions/setup-python@v2
+  #       with:
+  #         python-version: 3.8
+  #     - run: pip install pgbm
+  #     - run: pip install scikit-learn matplotlib
+  #     - run: pip install torch torchvision torchaudio
+  #     - run: echo "???"
+  # install-cpu-numba:
+  #   runs-on: [self-hosted,gpu]
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - name: Set up Python 3.8
+  #       uses: actions/setup-python@v2
+  #       with:
+  #         python-version: 3.8
+  #     - run: pip install pgbm
+  #     - run: pip install scikit-learn matplotlib
+  #     - run: pip install numba
+  #     - run: python examples/numba/example01_bostonhousing_cpu.py
+  #     - run: echo "???"
