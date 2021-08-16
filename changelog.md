@@ -1,3 +1,7 @@
+## v1.0 ##
+* Fixed bug where it was not possible to use `feature_fraction<1` on gpu because random number generator was cpu-based.
+* Added possibility to output learned mean and variance when using `predict_dist` function.
+
 ## v0.9 ##
 * Experimental TPU support for Google Cloud.
 * Python 3.7 compatibility.

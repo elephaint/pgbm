@@ -36,10 +36,10 @@ class PGBM(object):
     
     def _init_params(self, params):       
         self.params = {}
-        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
+        param_names = ['min_split_gain', 'min_data_in_leaf', 'min_sum_hessian_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
                        'seed', 'split_parallel', 'distribution', 'checkpoint']
-        param_defaults = [0.0, 2, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'feature', 'normal', False]
+        param_defaults = [0.0, 2, 1e-3, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'feature', 'normal', False]
                           
         for i, param in enumerate(param_names):
             self.params[param] = params[param] if param in params else param_defaults[i]
@@ -76,7 +76,7 @@ class PGBM(object):
     
     @staticmethod
     @njit(fastmath=True)
-    def _create_tree(X, gradient, hessian, estimator, train_nodes, bins, nodes_idx, nodes_split_feature, nodes_split_bin, leaves_idx, leaves_mu, leaves_var, feature_importance, lampda, max_nodes, max_leaves, max_bin, feature_fraction, min_split_gain, min_data_in_leaf, split_parallel):
+    def _create_tree(X, gradient, hessian, estimator, train_nodes, bins, nodes_idx, nodes_split_feature, nodes_split_bin, leaves_idx, leaves_mu, leaves_var, feature_importance, lampda, max_nodes, max_leaves, max_bin, feature_fraction, min_split_gain, min_data_in_leaf, min_sum_hessian_in_leaf, split_parallel):
         # Set start node and start leaf index
         leaf_idx = 0
         node_idx = 0
@@ -116,7 +116,7 @@ class PGBM(object):
                     split_right = ~split_left * split_node
                     split_left *= split_node
                     # Split when enough data in leafs                        
-                    if (np.sum(split_left) >= min_data_in_leaf) & (np.sum(split_right) >= min_data_in_leaf):
+                    if (np.sum(split_left) >= min_data_in_leaf) & (np.sum(split_right) >= min_data_in_leaf) & (np.sum(hessian[split_left]) > min_sum_hessian_in_leaf) & (np.sum(hessian[split_right]) > min_sum_hessian_in_leaf):
                         # Save split information
                         nodes_idx[estimator, node_idx] = node
                         nodes_split_feature[estimator, node_idx] = sample_features[split_feature_sample] 
@@ -316,9 +316,9 @@ class PGBM(object):
                 # Retrieve bagging batch
                 samples = rng.choice(self.n_samples, self.bagging_fraction)
                 # Create tree
-                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['split_parallel'])
+                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['min_sum_hessian_in_leaf'], self.params['split_parallel'])
             else:
-                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits, gradient, hessian, estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['split_parallel'])                
+                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits, gradient, hessian, estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['min_sum_hessian_in_leaf'], self.params['split_parallel'])                
             # Get predictions for all samples
             yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator, self.nodes_idx[estimator], self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
             # Compute new gradient and hessian
@@ -387,7 +387,7 @@ class PGBM(object):
 
         return yhat0 + mu
        
-    def predict_dist(self, X, n_forecasts=100, parallel=True):
+    def predict_dist(self, X, n_forecasts=100, parallel=True, output_sample_statistics=False):
         """
         Generate probabilistic estimates/forecasts for a given sample set X
         
@@ -404,6 +404,9 @@ class PGBM(object):
             n_forecasts (integer): number of estimates/forecasts to create.
             parallel (boolean): not applicable. Only in place to support easy switching between 
                 Torch and Numba backend.
+            output_sample_statistics (boolean): whether to also output the learned sample mean and variance. If True,
+                the function will return a tuple (forecasts, mu, variance) with the latter arrays containing the learned
+                mean and variance per sample that can be used to parameterize a distribution.
         """
         dist = True
         yhat0 = self.yhat_0.repeat(X.shape[0])
@@ -442,10 +445,10 @@ class PGBM(object):
             yhat =  rng.logistic(loc, scale, (n_forecasts, mu.shape[0]))
         elif self.params['distribution'] == 'gamma':
             variance = np.clip(variance, 1e-9, np.max(variance))
-            mu = np.clip(mu, 1e-9, np.max(mu))
-            shape = mu**2 / variance
-            scale = mu / shape
-            yhat =  rng.gamma(shape, scale, (n_forecasts, mu.shape[0]))
+            mu_adj = np.clip(mu, 1e-9, np.max(mu))
+            shape = mu_adj**2 / variance
+            scale = mu_adj / shape
+            yhat =  rng.gamma(shape, scale, (n_forecasts, mu_adj.shape[0]))
         elif self.params['distribution'] == 'gumbel':
             variance = np.clip(variance, 1e-9, np.max(variance))
             scale = np.sqrt(6 * variance / np.pi**2)
@@ -457,7 +460,10 @@ class PGBM(object):
         else:
             print('Distribution not (yet) supported')
         
-        return yhat
+        if output_sample_statistics:
+            return (yhat, mu, variance)
+        else:
+            return yhat
     
     @staticmethod
     @njit(fastmath=True, parallel=True)

@@ -47,10 +47,10 @@ class PGBM(nn.Module):
     
     def _init_params(self, params):       
         self.params = {}
-        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
+        param_names = ['min_split_gain', 'min_data_in_leaf', 'min_sum_hessian_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
                        'seed', 'device', 'gpu_device_id', 'derivatives', 'distribution','checkpoint']
-        param_defaults = [0.0, 2, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'cpu', 0, 'exact', 'normal', False]
+        param_defaults = [0.0, 2, 1e-3, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'cpu', 0, 'exact', 'normal', False]
         
         # Choose device
         if 'device' in params:
@@ -61,6 +61,8 @@ class PGBM(nn.Module):
                     self.device = torch.device(params['gpu_device_id'])
                 else:
                     self.device = torch.device(0)
+                    params['gpu_device_id'] = 0
+                
             # This is experimental and has been tested only on Google Colab
             # See this: https://colab.research.google.com/github/pytorch/xla/blob/master/contrib/colab/getting-started.ipynb
             elif params['device'] == 'tpu':
@@ -70,16 +72,17 @@ class PGBM(nn.Module):
                 self.device = torch.device('cpu')
         else: 
             self.device = torch.device('cpu')
+            params['device'] = 'cpu'
                    
         for i, param in enumerate(param_names):
             self.params[param] = params[param] if param in params else param_defaults[i]
-            if param in ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation']:
+            if param in ['min_split_gain', 'min_data_in_leaf', 'min_sum_hessian_in_leaf', 'learning_rate', 'lambda', 'tree_correlation']:
                 self.params[param] = torch.tensor(self.params[param], device=self.device, dtype=torch.float32)
                 
         self.params['min_data_in_leaf'] = torch.clamp(self.params['min_data_in_leaf'], 2)
         # Set some additional params
         self.params['max_nodes'] = self.params['max_leaves'] - 1
-        self.rng = torch.Generator()
+        self.rng = torch.Generator(self.device)
         self.rng.manual_seed(self.params['seed'])
         self.epsilon = 1.0e-4
 
@@ -217,7 +220,7 @@ class PGBM(nn.Module):
                         dist.all_reduce(split_left_sum,  op=dist.ReduceOp.SUM)
                         dist.all_reduce(split_right_sum,  op=dist.ReduceOp.SUM)
                     # Split when enough data in leafs                        
-                    if (split_left_sum >= self.params['min_data_in_leaf']) & (split_right_sum >= self.params['min_data_in_leaf']):
+                    if (split_left_sum >= self.params['min_data_in_leaf']) & (split_right_sum >= self.params['min_data_in_leaf']) & (hessian[split_left].sum() > self.params['min_sum_hessian_in_leaf']) & (hessian[split_right].sum() > self.params['min_sum_hessian_in_leaf']):
                         # Save split information
                         self.nodes_idx[estimator, self.node_idx] = node
                         self.nodes_split_feature[estimator, self.node_idx] = sample_features[split_feature_sample] 
@@ -604,7 +607,7 @@ class PGBM(nn.Module):
 
         return yhat0 + mu
        
-    def predict_dist(self, X, n_forecasts=100, parallel=True):
+    def predict_dist(self, X, n_forecasts=100, parallel=True, output_sample_statistics=False):
         """
         Generate probabilistic estimates/forecasts for a given sample set X
         
@@ -622,6 +625,9 @@ class PGBM(nn.Module):
             parallel (boolean): whether to generate the estimates in parallel or using a serial computation.
                 Use serial if you experience RAM or GPU out-of-memory errors when using this function. Otherwise,
                 parallel is recommended as it is much faster.
+            output_sample_statistics (boolean): whether to also output the learned sample mean and variance. If True,
+                the function will return a tuple (forecasts, mu, variance) with the latter arrays containing the learned
+                mean and variance per sample that can be used to parameterize a distribution.
         """
         X = self._convert_array(X)
         self.dist = True
@@ -661,16 +667,16 @@ class PGBM(nn.Module):
             base_dist = Uniform(torch.zeros(X.shape[0], device=X.device), torch.ones(X.shape[0], device=X.device))
             yhat = TransformedDistribution(base_dist, [SigmoidTransform().inv, AffineTransform(loc, scale)]).rsample([n_forecasts])
         elif self.params['distribution'] == 'lognormal':
-            mu = mu.clamp(1e-9)
+            mu_adj = mu.clamp(1e-9)
             variance = torch.nan_to_num(variance, 1e-9).clamp(1e-9)
-            scale = ((variance + mu**2) / mu**2).log().clamp(1e-9)
-            loc = (mu.log() - 0.5 * scale).clamp(1e-9)
+            scale = ((variance + mu_adj**2) / mu_adj**2).log().clamp(1e-9)
+            loc = (mu_adj.log() - 0.5 * scale).clamp(1e-9)
             yhat = LogNormal(loc, scale.sqrt()).rsample([n_forecasts])
         elif self.params['distribution'] == 'gamma':
             variance = torch.nan_to_num(variance, 1e-9)
-            mu = torch.nan_to_num(mu, 1e-9)
-            rate = (mu.clamp(1e-9) / variance.clamp(1e-9))
-            shape = mu.clamp(1e-9) * rate
+            mu_adj = torch.nan_to_num(mu, 1e-9)
+            rate = (mu_adj.clamp(1e-9) / variance.clamp(1e-9))
+            shape = mu_adj.clamp(1e-9) * rate
             yhat = Gamma(shape, rate).rsample([n_forecasts])
         elif self.params['distribution'] == 'gumbel':
             variance = torch.nan_to_num(variance, 1e-9)
@@ -731,8 +737,10 @@ class PGBM(nn.Module):
         else:
             print('Distribution not (yet) supported')
           
-        
-        return yhat
+        if output_sample_statistics:
+            return (yhat, mu, variance)
+        else:
+            return yhat
     
     def crps_ensemble(self, yhat_dist, y):
         """
