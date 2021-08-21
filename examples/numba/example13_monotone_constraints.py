@@ -90,7 +90,7 @@ model = PGBM_sklearn(mseloss_objective, rmseloss_metric, params=params).fit(X_tr
 y0, x0 = partial_dependence(model, X_test, [0])
 y5, x5 = partial_dependence(model, X_test, [5])
 #%% Plot dependencies. 
-# Note how the relationships are now linear for both features - decreasing for the first and decreasing for the sixth feature.
+# Note how the relationships are now linear for both features - decreasing for the first and increasing for the sixth feature.
 fig, ax = plt.subplots(1, 2)
 ax[0].plot(x0[0], y0.squeeze())
 ax[0].set_title('Dependency plot of feature 0')
