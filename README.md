@@ -10,6 +10,14 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 * Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/))
 * Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example07_optimizeddistribution.py))
 
+In addition, we support the following features:
+* Feature subsampling by tree
+* Sample subsampling ('bagging') by tree
+* Saving, loading and predicting with a trained model ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example11_bostonhousing_saveandload.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example11_bostonhousing_saveandload.py))
+* Checkpointing (continuing training of a model after saving) ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example12_bostonhousing_checkpointing.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example12_bostonhousing_checkpointing.py))
+* Feature importance by gain and permutation ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example09_bostonhousing_featimportance.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example09_bostonhousing_featimportance.py))
+* Monotone constraints ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example15_monotone_constraints.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example13_monotone_constraints.py))
+
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 ### Installation ###
