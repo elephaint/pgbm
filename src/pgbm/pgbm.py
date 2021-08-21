@@ -47,10 +47,14 @@ class PGBM(nn.Module):
     
     def _init_params(self, params):       
         self.params = {}
-        param_names = ['min_split_gain', 'min_data_in_leaf', 'min_sum_hessian_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
+        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
-                       'seed', 'device', 'gpu_device_id', 'derivatives', 'distribution','checkpoint']
-        param_defaults = [0.0, 2, 1e-3, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'cpu', 0, 'exact', 'normal', False]
+                       'seed', 'device', 'gpu_device_id', 'derivatives', 'distribution','checkpoint', 'tree_correlation', 
+                       'monotone_constraints', 'monotone_iterations']
+        param_defaults = [0.0, 3, 0.1, 1.0, 32, 
+                          256, 100, 2, 100, 1, 1, 
+                          2147483647, 'cpu', 0, 'exact', 'normal', False, np.log10(self.n_samples) / 100, 
+                          np.zeros(self.n_features), 1]
         
         # Choose device
         if 'device' in params:
@@ -76,12 +80,20 @@ class PGBM(nn.Module):
                    
         for i, param in enumerate(param_names):
             self.params[param] = params[param] if param in params else param_defaults[i]
-            if param in ['min_split_gain', 'min_data_in_leaf', 'min_sum_hessian_in_leaf', 'learning_rate', 'lambda', 'tree_correlation']:
+            if param in ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'tree_correlation', 'monotone_constraints']:
                 self.params[param] = torch.tensor(self.params[param], device=self.device, dtype=torch.float32)
                 
-        self.params['min_data_in_leaf'] = torch.clamp(self.params['min_data_in_leaf'], 2)
+        # Make sure we bound certain parameters
+        self.params['min_data_in_leaf'] = torch.clamp(self.params['min_data_in_leaf'], 3)
+        self.params['min_split_gain'] = torch.clamp(self.params['min_split_gain'], 0.0)
+        self.params['monotone_iterations'] = np.maximum(self.params['monotone_iterations'], 1)
+        self.feature_fraction = torch.tensor(self.params['feature_fraction'] * self.n_features, device = self.device, dtype=torch.int64).clamp(1, self.n_features)
+        self.bagging_fraction = torch.tensor(self.params['bagging_fraction'] * self.n_samples, device = self.device, dtype=torch.int64).clamp(1, self.n_samples)
+            
         # Set some additional params
+        assert len(self.params['monotone_constraints']) == self.n_features, "The number of items in the monotonicity constraint list should be equal to the number of features in your dataset."
         self.params['max_nodes'] = self.params['max_leaves'] - 1
+        self.any_monotone = torch.any(self.params['monotone_constraints'] != 0)
         self.rng = torch.Generator(self.device)
         self.rng.manual_seed(self.params['seed'])
         self.epsilon = 1.0e-4
@@ -90,7 +102,7 @@ class PGBM(nn.Module):
         # Create array that contains the bins
         max_bin = self.params['max_bin']
         bins = torch.zeros((X.shape[1], max_bin), device=X.device)
-        quantiles = torch.arange(1, max_bin + 1, device=X.device) / (max_bin + 1)
+        quantiles = torch.linspace(0, 1, max_bin, device=X.device)
         # For each feature, create max_bins based on frequency bins. 
         for i in range(X.shape[1]):
             xs = X[:, i]
@@ -124,7 +136,7 @@ class PGBM(nn.Module):
         
         return gradient, hessian
 
-    def _leaf_prediction(self, gradient, hessian, node, estimator):
+    def _leaf_prediction(self, gradient, hessian, node, estimator, return_mu=False):
         # Empirical mean
         gradient_sum = gradient.sum()
         hessian_sum = hessian.sum()
@@ -148,20 +160,51 @@ class PGBM(nn.Module):
         # Mean and variance of the leaf prediction
         lambda_scaled = self.params['lambda'] / N
         mu = gradient_mean / ( hessian_mean + lambda_scaled) - covariance / (hessian_mean + lambda_scaled)**2 + (hessian_variance * gradient_mean) / (hessian_mean + lambda_scaled)**3
-        var = mu**2 * (gradient_variance / gradient_mean**2 + hessian_variance / (hessian_mean + lambda_scaled)**2
-                        - 2 * covariance / (gradient_mean * (hessian_mean + lambda_scaled) ) )
-        # Save optimal prediction and node information
-        self.leaves_idx[estimator, self.leaf_idx] = node
-        self.leaves_mu[estimator, self.leaf_idx] = mu             
-        self.leaves_var[estimator, self.leaf_idx] = var
-        # Increase leaf idx       
-        self.leaf_idx += 1           
+        if return_mu:
+            return mu
+        else:
+            var = mu**2 * (gradient_variance / gradient_mean**2 + hessian_variance / (hessian_mean + lambda_scaled)**2
+                            - 2 * covariance / (gradient_mean * (hessian_mean + lambda_scaled) ) )
+            # Save optimal prediction and node information
+            self.leaves_idx[estimator, self.leaf_idx] = node
+            self.leaves_mu[estimator, self.leaf_idx] = mu             
+            self.leaves_var[estimator, self.leaf_idx] = var
+            # Increase leaf idx       
+            self.leaf_idx += 1   
+            
+    def _create_split(self, estimator, node, sample_features, split_feature_sample, split_bin, X_node, split_gain, n_samples, split_left, split_right, gradient, hessian):
+        # Save split information
+        self.nodes_idx[estimator, self.node_idx] = node
+        self.nodes_split_feature[estimator, self.node_idx] = sample_features[split_feature_sample] 
+        self.nodes_split_bin[estimator, self.node_idx] = split_bin
+        self.node_idx += 1
+        X_node_samples = torch.tensor(X_node.shape[1], device=X_node.device)
+        # Synchronize
+        if self.distributed:
+            dist.all_reduce(X_node_samples, op=dist.ReduceOp.SUM)
+        self.feature_importance[sample_features[split_feature_sample]] += split_gain * X_node_samples / n_samples 
+        # Assign next node to samples if next node does not exceed max n_leaves
+        criterion = 2 * (self.params['max_nodes'] - self.node_idx + 1)
+        n_leaves_old = self.leaf_idx
+        if (criterion >  self.params['max_leaves'] - n_leaves_old):
+            self.train_nodes += split_left * node
+        else:
+            self._leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator)
+        if (criterion >  self.params['max_leaves'] - n_leaves_old + 1):
+            self.train_nodes += split_right * (node + 1)
+        else:
+            self._leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator)
     
     def _create_tree(self, X, gradient, hessian, estimator):
         # Set start node and start leaf index
         self.leaf_idx = torch.tensor(0, dtype=torch.int64, device=X.device)
         self.node_idx = 0
+        node_constraint_idx = 0
         node = 1
+        node_constraints = torch.zeros((self.params['max_nodes'] * 2 + 1, 3), dtype=torch.float32, device=X.device)
+        node_constraints[0, 0] = node
+        node_constraints[:, 1] = -np.inf
+        node_constraints[:, 2] = np.inf
         n_features = X.shape[0]
         n_samples = torch.tensor(X.shape[1], device=X.device)
         # Synchronize total samples in node for feature importance
@@ -187,13 +230,21 @@ class PGBM(nn.Module):
                 X_node = Xe[:, split_node]
                 gradient_node = gradient[split_node]
                 hessian_node = hessian[split_node]
-                # Compute split decision, parallelize across GPUs if required
+                # Compute split decision
                 if self.params['device'] == 'gpu':
-                    Gl, Hl = self.parallelsum_kernel.split_decision(X_node, gradient_node, hessian_node, self.params['max_bin'])
+                    Gl, Hl, Glc = self.parallelsum_kernel.split_decision(X_node, gradient_node, hessian_node, self.params['max_bin'])
                 else:
                     left_idx = torch.gt(X_node.unsqueeze(-1), drange).float();
+                    # Compute counts
+                    Glc = left_idx.sum(1);
+                    # Compute sum
                     Gl = torch.einsum("i, jik -> jk", gradient_node, left_idx);
                     Hl = torch.einsum("i, jik -> jk", hessian_node, left_idx);
+                # Compute counts of right leafs
+                Grc = len(gradient_node) - Glc;
+                Glc = Glc >= self.params['min_data_in_leaf']
+                Grc = Grc >= self.params['min_data_in_leaf']
+                # Sum gradients and hessian
                 G = gradient_node.sum()
                 H = hessian_node.sum()
                 # Synchronize
@@ -202,9 +253,12 @@ class PGBM(nn.Module):
                     dist.all_reduce(Hl, op=dist.ReduceOp.SUM)
                     dist.all_reduce(G, op=dist.ReduceOp.SUM)
                     dist.all_reduce(H, op=dist.ReduceOp.SUM)
-                # Compute split_gain                
+                    dist.all_reduce(Glc, op=dist.ReduceOp.SUM)
+                    dist.all_reduce(Grc, op=dist.ReduceOp.SUM)
+                # Compute split_gain, only consider split gain when enough samples in leaves.
                 split_gain_tot = (Gl * Gl) / (Hl + self.params['lambda']) + (G - Gl)*(G - Gl) / (H - Hl + self.params['lambda']) - (G * G) / (H + self.params['lambda'])
-                split_gain = split_gain_tot.max()      
+                split_gain_tot = split_gain_tot * Glc * Grc
+                split_gain = split_gain_tot.max()
                 # Split if split_gain exceeds minimum
                 if split_gain > self.params['min_split_gain']:
                     argmaxsg = split_gain_tot.argmax()
@@ -213,37 +267,87 @@ class PGBM(nn.Module):
                     split_left = (Xe[split_feature_sample] > split_bin).squeeze()
                     split_right = ~split_left * split_node
                     split_left *= split_node
-                    split_left_sum = split_left.sum()
-                    split_right_sum = split_right.sum()
-                     # Synchronize
-                    if self.distributed:
-                        dist.all_reduce(split_left_sum,  op=dist.ReduceOp.SUM)
-                        dist.all_reduce(split_right_sum,  op=dist.ReduceOp.SUM)
-                    # Split when enough data in leafs                        
-                    if (split_left_sum >= self.params['min_data_in_leaf']) & (split_right_sum >= self.params['min_data_in_leaf']) & (hessian[split_left].sum() > self.params['min_sum_hessian_in_leaf']) & (hessian[split_right].sum() > self.params['min_sum_hessian_in_leaf']):
-                        # Save split information
-                        self.nodes_idx[estimator, self.node_idx] = node
-                        self.nodes_split_feature[estimator, self.node_idx] = sample_features[split_feature_sample] 
-                        self.nodes_split_bin[estimator, self.node_idx] = split_bin
-                        self.node_idx += 1
-                        X_node_samples = torch.tensor(X_node.shape[1], device=X_node.device)
-                        # Synchronize
-                        if self.distributed:
-                            dist.all_reduce(X_node_samples, op=dist.ReduceOp.SUM)
-                        self.feature_importance[sample_features[split_feature_sample]] += split_gain * X_node_samples / n_samples 
-                        # Assign next node to samples if next node does not exceed max n_leaves
-                        criterion = 2 * (self.params['max_nodes'] - self.node_idx + 1)
-                        n_leaves_old = self.leaf_idx
-                        if (criterion >  self.params['max_leaves'] - n_leaves_old):
-                            self.train_nodes += split_left * node
+                    # Check for monotone constraints if applicable
+                    if self.any_monotone:
+                        split_gain_tot_flat = split_gain_tot.flatten()
+                        # Find min and max for leaf (mu) weights of current node
+                        node_min = node_constraints[node_constraints[:, 0] == node, 1].squeeze()
+                        node_max = node_constraints[node_constraints[:, 0] == node, 2].squeeze()
+                        # Check if current split proposal has a monotonicity constraint
+                        split_constraint = self.params['monotone_constraints'][sample_features[split_feature_sample]]
+                        # Perform check only if parent node has a constraint or if the current proposal is constrained. Todo: this might be a CPU check due to np.inf. Replace np.inf by: torch.tensor(float("Inf"), dtype=torch.float32, device=X.device)
+                        if (node_min > -np.inf) or (node_max < np.inf) or (split_constraint != 0):
+                            # We precompute the child left- and right weights and evaluate whether they satisfy the constraints. If not, we seek another split and repeat.
+                            mu_left = self._leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, return_mu=True)
+                            mu_right = self._leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, return_mu=True)
+                            split = True
+                            split_iters = 1
+                            condition = split * (((mu_left < node_min) + (mu_left > node_max) + (mu_right < node_min) + (mu_right > node_max)) + ((split_constraint != 0) * (torch.sign(mu_right - mu_left) != split_constraint)))
+                            while condition > 0:
+                                # Set gain of current split to -1, as this split is not allowed
+                                split_gain_tot_flat[argmaxsg] = -1
+                                # Get new split. Check if split_gain is still sufficient, because we might end up with having only constraint invalid splits (i.e. all split_gain <= 0).
+                                split_gain = split_gain_tot_flat.max()
+                                # Check if new proposed split is allowed, otherwise break loop
+                                split_constraint = self.params['monotone_constraints'][sample_features[split_feature_sample]]
+                                split = (split_gain > self.params['min_split_gain']) * (split_iters < self.params['monotone_iterations'])
+                                if not split: break
+                                # Find new split
+                                argmaxsg = split_gain_tot_flat.argmax()
+                                split_feature_sample = argmaxsg // self.params['max_bin']
+                                split_bin = argmaxsg - split_feature_sample * self.params['max_bin']
+                                split_left = (Xe[split_feature_sample] > split_bin).squeeze()
+                                split_right = ~split_left * split_node
+                                split_left *= split_node
+                                # Compute new leaf weights
+                                mu_left = self._leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, return_mu=True)
+                                mu_right = self._leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, return_mu=True)
+                                # Check if new proposed split has a monotonicity constraint
+                                condition = split * (((mu_left < node_min) + (mu_left > node_max) + (mu_right < node_min) + (mu_right > node_max)) + ((split_constraint != 0) * (torch.sign(mu_right - mu_left) != split_constraint)))
+                                split_iters += 1
+                            # Only create a split if there still is a split to make...
+                            if split:
+                                # Compute min and max values for children nodes
+                                if split_constraint == 1:
+                                    left_node_min = -np.inf
+                                    left_node_max = mu_right
+                                    right_node_min = mu_left
+                                    right_node_max = np.inf                                    
+                                elif split_constraint == -1:
+                                    left_node_min = mu_right
+                                    left_node_max = np.inf
+                                    right_node_min = -np.inf
+                                    right_node_max = mu_left
+                                else:
+                                    left_node_min = node_min
+                                    left_node_max = node_max
+                                    right_node_min = node_min
+                                    right_node_max = node_max
+                                # Set left children constraints
+                                node_constraints[node_constraint_idx, 0] = 2 * node
+                                node_constraints[node_constraint_idx, 1] = left_node_min
+                                node_constraints[node_constraint_idx, 2] = left_node_max
+                                node_constraint_idx += 1
+                                # Set right children constraints
+                                node_constraints[node_constraint_idx, 0] = 2 * node + 1
+                                node_constraints[node_constraint_idx, 1] = right_node_min
+                                node_constraints[node_constraint_idx, 2] = right_node_max
+                                node_constraint_idx += 1
+                                # Create split
+                                self._create_split(estimator, node, sample_features, split_feature_sample, split_bin, X_node, split_gain, n_samples, split_left, split_right, gradient, hessian)
+                            else:
+                                self._leaf_prediction(gradient_node, hessian_node, node, estimator)
                         else:
-                            self._leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator)
-                        if (criterion >  self.params['max_leaves'] - n_leaves_old + 1):
-                            self.train_nodes += split_right * (node + 1)
-                        else:
-                            self._leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator)
+                            # Set left children constraints
+                            node_constraints[node_constraint_idx, 0] = 2 * node
+                            node_constraint_idx += 1
+                            # Set right children constraints
+                            node_constraints[node_constraint_idx, 0] = 2 * node + 1
+                            node_constraint_idx += 1                                                        
+                            # Create split
+                            self._create_split(estimator, node, sample_features, split_feature_sample, split_bin, X_node, split_gain, n_samples, split_left, split_right, gradient, hessian)
                     else:
-                        self._leaf_prediction(gradient_node, hessian_node, node, estimator)
+                        self._create_split(estimator, node, sample_features, split_feature_sample, split_bin, X_node, split_gain, n_samples, split_left, split_right, gradient, hessian)
                 else:
                     self._leaf_prediction(gradient_node, hessian_node, node, estimator)
                     
@@ -431,6 +535,8 @@ class PGBM(nn.Module):
         # Create parameters
         if params is None:
             params = {}
+        self.n_samples = train_set[0].shape[0]
+        self.n_features = train_set[0].shape[1]
         self._init_params(params)
         # Create train data
         X_train, y_train = self._convert_array(train_set[0]), self._convert_array(train_set[1]).squeeze()
@@ -442,21 +548,12 @@ class PGBM(nn.Module):
             self.objective = self._objective_approx
         self.metric = metric
         # Initialize predictions
-        self.n_features = X_train.shape[1]
-        self.n_samples = X_train.shape[0]
         n_samples = torch.tensor(X_train.shape[0], device=X_train.device)
         y_train_sum = y_train.sum()
         # Synchronize
         if self.distributed:
             dist.all_reduce(n_samples, op=dist.ReduceOp.SUM)
             dist.all_reduce(y_train_sum, op=dist.ReduceOp.SUM) 
-        if 'tree_correlation' in params:
-            self.params['tree_correlation'] = torch.tensor(params['tree_correlation'], device=self.device, dtype=torch.float32)
-        else:
-            self.params['tree_correlation'] = torch.tensor(np.log10(self.n_samples) / 100, device=self.device, dtype=torch.float32)
-        # Fractions of features and samples
-        self.feature_fraction = torch.tensor(self.params['feature_fraction'] * self.n_features, device = self.device, dtype=torch.int64).clamp(1, self.n_features)
-        self.bagging_fraction = torch.tensor(self.params['bagging_fraction'] * self.n_samples, device = self.device, dtype=torch.int64).clamp(1, self.n_samples)
         # Pre-allocate arrays
         nodes_idx = torch.zeros((self.params['n_estimators'], self.params['max_nodes']), dtype=torch.int64, device = self.device)
         nodes_split_feature = torch.zeros_like(nodes_idx)
@@ -809,6 +906,7 @@ class PGBM(nn.Module):
         params['lambda'] = params['lambda'].cpu().numpy()
         params['min_split_gain'] = params['min_split_gain'].cpu().numpy()
         params['min_data_in_leaf'] = params['min_data_in_leaf'].cpu().numpy()
+        params['monotone_constraints'] = params['monotone_constraints'].cpu().numpy()
 
         state_dict = {'nodes_idx': self.nodes_idx[:self.best_iteration].cpu().numpy(),
                       'nodes_split_feature':self.nodes_split_feature[:self.best_iteration].cpu().numpy(),
@@ -862,6 +960,7 @@ class PGBM(nn.Module):
         self.params['lambda'] = torch_float(np.array(self.params['lambda']))
         self.params['min_split_gain'] = torch_float(np.array(self.params['min_split_gain']))
         self.params['min_data_in_leaf'] = torch_float(np.array(self.params['min_data_in_leaf']))
+        self.params['monotone_constraints'] = torch_float(np.array(self.params['monotone_constraints']))        
         self.yhat_0  = torch_float(np.array(state_dict['yhat0']))
         self.bins = torch_float(state_dict['bins'])
         self.device = device

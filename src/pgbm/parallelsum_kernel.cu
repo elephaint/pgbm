@@ -28,7 +28,8 @@ __global__ void _kernel_psum(
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> gradient,
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> hessian,
   torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Gl_block,
-  torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Hl_block) {
+  torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Hl_block,
+  torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Glc_block) {
   
   // Sample index
   unsigned int ti_x = threadIdx.x;
@@ -47,6 +48,7 @@ __global__ void _kernel_psum(
   // Temporary floats
   float Gl_temp = 0;
   float Hl_temp = 0;
+  float Glc_temp = 0;
 
   // Load values and perform first reduction
   // Formulation of multiplication instead of if-condition improves speed as no divergent branches are created.
@@ -54,6 +56,7 @@ __global__ void _kernel_psum(
     float flag_add = k < X[j][i];
     Gl_temp += gradient[i] * flag_add;
     Hl_temp += hessian[i] * flag_add;
+    Glc_temp += flag_add;
     i += gridSize_x;  
   }
 
@@ -61,12 +64,14 @@ __global__ void _kernel_psum(
   for (int i = 16; i > 0; i /= 2) {
     Gl_temp += tile32.shfl_down(Gl_temp, i);
     Hl_temp += tile32.shfl_down(Hl_temp, i);
+    Glc_temp += tile32.shfl_down(Glc_temp, i);
   }
 
   // First thread contains blocksum
   if (ti_x == 0){
     Gl_block[blockIdx.x][j][k] = Gl_temp;
     Hl_block[blockIdx.x][j][k] = Hl_temp;
+    Glc_block[blockIdx.x][j][k] = Glc_temp;
   }
 }
 
@@ -75,7 +80,8 @@ __global__ void _kernel_Atomic(
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> gradient,
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> hessian,
   torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> Gl,
-  torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> Hl) {
+  torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> Hl,
+  torch::PackedTensorAccessor32<float,2,torch::RestrictPtrTraits> Glc) {
   // feature index
   unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
   // sample index
@@ -100,6 +106,7 @@ __global__ void _kernel_Atomic(
   for (int k = 0; k < Xsc; k++){
     atomicAdd(&Gl[i][k], grad);
     atomicAdd(&Hl[i][k], hess);
+    atomicAdd(&Glc[i][k], 1);
   }
   // Sync threads 
   __syncthreads(); 
@@ -119,6 +126,7 @@ std::vector<torch::Tensor> _split_decision_cuda(
   int n_features = X.size(0);
   auto Gl = torch::zeros({n_features, n_bins}, torch::dtype(torch::kF32).device(X.device()));
   auto Hl = torch::zeros({n_features, n_bins}, torch::dtype(torch::kF32).device(X.device()));
+  auto Glc = torch::zeros({n_features, n_bins}, torch::dtype(torch::kF32).device(X.device()));
   
   // Invoke kernel
   if ( n_bins <= 32 || n_bins == 64 || n_bins == 128 || n_bins == 256){
@@ -135,16 +143,19 @@ std::vector<torch::Tensor> _split_decision_cuda(
     // Use bfloat16 to reduce memory consumption.
     auto Gl_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(at::ScalarType::BFloat16).device(X.device()));
     auto Hl_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(at::ScalarType::BFloat16).device(X.device()));
+    auto Glc_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(at::ScalarType::BFloat16).device(X.device()));
     //  Run kernel
     _kernel_psum<<<numBlocks, threadsPerBlock>>>(
       X.packed_accessor32<unsigned char,2,torch::RestrictPtrTraits>(),
       gradient.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       hessian.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       Gl_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
-      Hl_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>());
+      Hl_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
+      Glc_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>());
     // Return Gl, Hl
     Gl = Gl_block.sum(0).to(torch::kF32);
     Hl = Hl_block.sum(0).to(torch::kF32);
+    Glc = Glc_block.sum(0).to(torch::kF32);
     }
   else { 
     // Constraint: this solution works up to ~67M n_samples (but then you'll probably have a GPU OOM error anyways...)
@@ -158,8 +169,9 @@ std::vector<torch::Tensor> _split_decision_cuda(
       gradient.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       hessian.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       Gl.packed_accessor32<float,2,torch::RestrictPtrTraits>(),
-      Hl.packed_accessor32<float,2,torch::RestrictPtrTraits>());
+      Hl.packed_accessor32<float,2,torch::RestrictPtrTraits>(),
+      Glc.packed_accessor32<float,2,torch::RestrictPtrTraits>());
     }
   // Return sum reduced over the block-dimension.
-  return {Gl, Hl};
+  return {Gl, Hl, Glc};
 }

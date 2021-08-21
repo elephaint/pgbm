@@ -1,3 +1,9 @@
+## v1.1 ##
+* Fixed a bug in bin calculation of Torch version that caused incorrect results on most outer quantiles of feature values.
+* Added `monotone_constraints` as a parameter. This allows to force the algorithm to maintain an positive or negative monotonic relationship of the output with respect to the input features.
+* Included automatic type conversion to `float64` in Numba version.
+* Set minimum for `min_data_in_leaf`to `3`. There were some stability issues with the setting at `2` which led to division by zero in rare cases, and this resolves it.
+
 ## v1.0 ##
 * Fixed bug where it was not possible to use `feature_fraction<1` on gpu because random number generator was cpu-based.
 * Added possibility to output learned mean and variance when using `predict_dist` function.

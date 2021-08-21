@@ -200,7 +200,7 @@ DEVICE = "gpu"
 torch_device = torch.device(DEVICE) if DEVICE == "cpu" else torch.device("cuda")
 
 params = {'min_split_gain':0,
-      'min_data_in_leaf':1,
+      'min_data_in_leaf':3,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,

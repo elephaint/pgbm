@@ -25,7 +25,7 @@
 """
 #%% Import packages
 import numpy as np
-from numba import njit, prange, config
+from numba import njit, prange, config, float32
 from pathlib import Path
 import pickle
 #%% Probabilistic Gradient Boosting Machines
@@ -36,18 +36,30 @@ class PGBM(object):
     
     def _init_params(self, params):       
         self.params = {}
-        param_names = ['min_split_gain', 'min_data_in_leaf', 'min_sum_hessian_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
+        param_names = ['min_split_gain', 'min_data_in_leaf', 'learning_rate', 'lambda', 'max_leaves',
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
-                       'seed', 'split_parallel', 'distribution', 'checkpoint']
-        param_defaults = [0.0, 2, 1e-3, 0.1, 1.0, 32, 256, 100, 2, 100, 1, 1, 2147483647, 'feature', 'normal', False]
+                       'seed', 'split_parallel', 'distribution', 'checkpoint', 'tree_correlation', 
+                       'monotone_constraints', 'monotone_iterations']
+        param_defaults = [0.0, 3, 0.1, 1.0, 32, 
+                          256, 100, 2, 100, 1, 1, 
+                          2147483647, 'feature', 'normal', False, np.log10(self.n_samples) / 100, 
+                          np.zeros(self.n_features), 1]
                           
         for i, param in enumerate(param_names):
             self.params[param] = params[param] if param in params else param_defaults[i]
         
-        self.params['min_data_in_leaf'] = np.maximum(self.params['min_data_in_leaf'], 2)
+        # Make sure we bound certain parameters
+        self.params['min_data_in_leaf'] = np.maximum(self.params['min_data_in_leaf'], 3)
+        self.params['min_split_gain'] = np.maximum(self.params['min_split_gain'], 0.0)
+        self.params['monotone_iterations'] = np.maximum(self.params['monotone_iterations'], 1)
+        self.feature_fraction = np.clip(int(self.params['feature_fraction'] * self.n_features), 1, self.n_features, dtype=np.int64)
+        self.bagging_fraction = np.clip(int(self.params['bagging_fraction'] * self.n_samples), 1, self.n_samples, dtype=np.int64)
         
         # Set some additional params
+        assert len(self.params['monotone_constraints']) == self.n_features, "The number of items in the monotonicity constraint list should be equal to the number of features in your dataset."
         self.params['max_nodes'] = self.params['max_leaves'] - 1
+        self.params['monotone_constraints'] = np.array(self.params['monotone_constraints'])
+        self.any_monotone = np.any(self.params['monotone_constraints'] != 0)
         self.epsilon = 1.0e-4
         np.random.seed(self.params['seed'])            
 
@@ -55,7 +67,7 @@ class PGBM(object):
     @njit(parallel=True, fastmath=True)
     def _create_feature_bins(X, max_bin):
         # Create array that contains the bins
-        bins = np.zeros((X.shape[1], max_bin))
+        bins = np.zeros((X.shape[1], max_bin), dtype=np.float64)
         # For each feature, create max_bins based on frequency bins. 
         # Note: this function will fail if a feature has only a single unique value.
         for i in prange(X.shape[1]):
@@ -76,11 +88,16 @@ class PGBM(object):
     
     @staticmethod
     @njit(fastmath=True)
-    def _create_tree(X, gradient, hessian, estimator, train_nodes, bins, nodes_idx, nodes_split_feature, nodes_split_bin, leaves_idx, leaves_mu, leaves_var, feature_importance, lampda, max_nodes, max_leaves, max_bin, feature_fraction, min_split_gain, min_data_in_leaf, min_sum_hessian_in_leaf, split_parallel):
+    def _create_tree(X, gradient, hessian, estimator, train_nodes, bins, nodes_idx, nodes_split_feature, nodes_split_bin, leaves_idx, leaves_mu, leaves_var, feature_importance, lampda, max_nodes, max_leaves, max_bin, feature_fraction, min_split_gain, min_data_in_leaf, split_parallel, monotone_constraints, any_monotone, monotone_iterations):
         # Set start node and start leaf index
         leaf_idx = 0
         node_idx = 0
+        node_constraint_idx = 0
         node = 1
+        node_constraints = np.zeros((max_nodes * 2 + 1, 3), dtype=np.float64)
+        node_constraints[0, 0] = node
+        node_constraints[:, 1] = -np.inf
+        node_constraints[:, 2] = np.inf
         n_features = X.shape[0]
         n_samples = X.shape[1]
         if feature_fraction < 1:
@@ -99,13 +116,20 @@ class PGBM(object):
                 gradient_node = gradient[split_node]
                 hessian_node = hessian[split_node]
                 # Compute split_gain
+                if split_parallel == 'sample':
+                    Gl, Hl, Glc = _split_decision_sample_parallel(X_node, gradient_node, hessian_node, max_bin)
+                else:
+                    Gl, Hl, Glc = _split_decision_feature_parallel(X_node, gradient_node, hessian_node, max_bin)
+                # Compute counts of right leafs
+                Grc = len(gradient_node) - Glc
+                Glc = Glc >= min_data_in_leaf
+                Grc = Grc >= min_data_in_leaf
+                # Sum gradients and hessian
                 G = np.sum(gradient_node)
                 H = np.sum(hessian_node)
-                if split_parallel == 'sample':
-                    Gl, Hl = _split_decision_sample_parallel(X_node, gradient_node, hessian_node, max_bin)
-                else:
-                    Gl, Hl = _split_decision_feature_parallel(X_node, gradient_node, hessian_node, max_bin)
+                # Compute split_gain, only consider split gain when enough samples in leaves.
                 split_gain_tot = (Gl * Gl) / (Hl + lampda) + (G - Gl)*(G - Gl) / (H - Hl + lampda) - (G * G) / (H + lampda)
+                split_gain_tot = split_gain_tot * Glc * Grc
                 split_gain = np.max(split_gain_tot)              
                 # Split if split_gain exceeds minimum
                 if split_gain > min_split_gain:
@@ -115,8 +139,116 @@ class PGBM(object):
                     split_left = (Xe[split_feature_sample] > split_bin)
                     split_right = ~split_left * split_node
                     split_left *= split_node
-                    # Split when enough data in leafs                        
-                    if (np.sum(split_left) >= min_data_in_leaf) & (np.sum(split_right) >= min_data_in_leaf) & (np.sum(hessian[split_left]) > min_sum_hessian_in_leaf) & (np.sum(hessian[split_right]) > min_sum_hessian_in_leaf):
+                    # Check for monotone constraints if applicable
+                    if any_monotone:
+                        split_gain_tot_flat = split_gain_tot.flatten()
+                        # Find min and max for leaf (mu) weights of current node
+                        node_min = node_constraints[node_constraints[:, 0] == node, 1][0]
+                        node_max = node_constraints[node_constraints[:, 0] == node, 2][0]
+                        # Check if current split proposal has a monotonicity constraint
+                        split_constraint = monotone_constraints[sample_features[split_feature_sample]]
+                        # Perform check only if parent node has a constraint or if the current proposal is constrained. Todo: this might be a CPU check due to np.inf. Replace np.inf by: torch.tensor(float("Inf"), dtype=torch.float32, device=X.device)
+                        if (node_min > -np.inf) or (node_max < np.inf) or (split_constraint != 0):
+                            # We precompute the child left- and right weights and evaluate whether they satisfy the constraints. If not, we seek another split and repeat.
+                            mu_left = _mu_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                            mu_right = _mu_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                            split = True
+                            split_iters = 1
+                            condition = split * (((mu_left < node_min) + (mu_left > node_max) + (mu_right < node_min) + (mu_right > node_max)) + ((split_constraint != 0) * (np.sign(mu_right - mu_left) != split_constraint)))
+                            while condition > 0:
+                                # Set gain of current split to -1, as this split is not allowed
+                                split_gain_tot_flat[argmaxsg] = -1
+                                # Get new split. Check if split_gain is still sufficient, because we might end up with having only constraint invalid splits (i.e. all split_gain <= 0).
+                                split_gain = split_gain_tot_flat.max()
+                                # Check if new proposed split is allowed, otherwise break loop
+                                split_constraint = monotone_constraints[sample_features[split_feature_sample]]
+                                split = (split_gain > min_split_gain) * (split_iters < monotone_iterations)
+                                if not split: break
+                                # Find new split 
+                                argmaxsg = split_gain_tot_flat.argmax()
+                                split_feature_sample = argmaxsg // max_bin
+                                split_bin = argmaxsg - split_feature_sample * max_bin
+                                split_left = (Xe[split_feature_sample] > split_bin)
+                                split_right = ~split_left * split_node
+                                split_left *= split_node
+                                # Compute new leaf weights
+                                mu_left = _mu_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                                mu_right = _mu_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                                # Compute new condition
+                                condition = split * (((mu_left < node_min) + (mu_left > node_max) + (mu_right < node_min) + (mu_right > node_max)) + ((split_constraint != 0) * (np.sign(mu_right - mu_left) != split_constraint)))
+                                split_iters += 1
+                            # Only create a split if there still is a split to make...
+                            if split:
+                                # Compute min and max values for children nodes
+                                if split_constraint == 1:
+                                    left_node_min = -np.inf
+                                    left_node_max = mu_right
+                                    right_node_min = mu_left
+                                    right_node_max = np.inf                                    
+                                elif split_constraint == -1:
+                                    left_node_min = mu_right
+                                    left_node_max = np.inf
+                                    right_node_min = -np.inf
+                                    right_node_max = mu_left
+                                else:
+                                    left_node_min = node_min
+                                    left_node_max = node_max
+                                    right_node_min = node_min
+                                    right_node_max = node_max
+                                # Set left children constraints
+                                node_constraints[node_constraint_idx, 0] = 2 * node
+                                node_constraints[node_constraint_idx, 1] = left_node_min
+                                node_constraints[node_constraint_idx, 2] = left_node_max
+                                node_constraint_idx += 1
+                                # Set right children constraints
+                                node_constraints[node_constraint_idx, 0] = 2 * node + 1
+                                node_constraints[node_constraint_idx, 1] = right_node_min
+                                node_constraints[node_constraint_idx, 2] = right_node_max
+                                node_constraint_idx += 1
+                                # Create split
+                                nodes_idx[estimator, node_idx] = node
+                                nodes_split_feature[estimator, node_idx] = sample_features[split_feature_sample] 
+                                nodes_split_bin[estimator, node_idx] = split_bin
+                                node_idx += 1
+                                feature_importance[sample_features[split_feature_sample]] += split_gain * X_node.shape[1] / n_samples 
+                                # Assign next node to samples if next node does not exceed max n_leaves
+                                criterion = 2 * (max_nodes - node_idx + 1)
+                                n_leaves_old = leaf_idx
+                                if (criterion >  max_leaves - n_leaves_old):
+                                    train_nodes += split_left * node
+                                else:
+                                    leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                                if (criterion >  max_leaves - n_leaves_old + 1):
+                                    train_nodes += split_right * (node + 1)
+                                else:
+                                    leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                            else:
+                                leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient_node, hessian_node, node, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                        else:
+                            # Set left children constraints
+                            node_constraints[node_constraint_idx, 0] = 2 * node
+                            node_constraint_idx += 1
+                            # Set right children constraints
+                            node_constraints[node_constraint_idx, 0] = 2 * node + 1
+                            node_constraint_idx += 1    
+                            # Save split information
+                            nodes_idx[estimator, node_idx] = node
+                            nodes_split_feature[estimator, node_idx] = sample_features[split_feature_sample] 
+                            nodes_split_bin[estimator, node_idx] = split_bin
+                            node_idx += 1
+                            feature_importance[sample_features[split_feature_sample]] += split_gain * X_node.shape[1] / n_samples 
+                            # Assign next node to samples if next node does not exceed max n_leaves
+                            criterion = 2 * (max_nodes - node_idx + 1)
+                            n_leaves_old = leaf_idx
+                            if (criterion >  max_leaves - n_leaves_old):
+                                train_nodes += split_left * node
+                            else:
+                                leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                            if (criterion >  max_leaves - n_leaves_old + 1):
+                                train_nodes += split_right * (node + 1)
+                            else:
+                                leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
+                    else:
                         # Save split information
                         nodes_idx[estimator, node_idx] = node
                         nodes_split_feature[estimator, node_idx] = sample_features[split_feature_sample] 
@@ -134,8 +266,6 @@ class PGBM(object):
                             train_nodes += split_right * (node + 1)
                         else:
                             leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
-                    else:
-                        leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient_node, hessian_node, node, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
                 else:
                     leaf_idx, leaves_idx, leaves_mu, leaves_var = _leaf_prediction(gradient_node, hessian_node, node, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var)
                     
@@ -237,9 +367,11 @@ class PGBM(object):
         # Create parameters
         if params is None:
             params = {}
+        self.n_samples = train_set[0].shape[0]
+        self.n_features = train_set[0].shape[1]
         self._init_params(params)
         # Create train data
-        X_train, y_train = train_set[0], train_set[1].squeeze()
+        X_train, y_train = train_set[0].astype(np.float64), train_set[1].squeeze().astype(np.float64)
         # Set objective & metric
         self.objective = njit(objective, parallel=True)
         self.metric = njit(metric, parallel=True)
@@ -247,13 +379,6 @@ class PGBM(object):
         self.n_features = X_train.shape[1]
         self.n_samples = X_train.shape[0]
         y_train_sum = y_train.sum()
-        if 'tree_correlation' in params:
-            self.params['tree_correlation'] = params['tree_correlation']
-        else:
-            self.params['tree_correlation'] = 0.01 * np.log10(self.n_samples)
-        # Fractions of features and samples
-        self.feature_fraction = np.clip(int(self.params['feature_fraction'] * self.n_features), 1, self.n_features, dtype=np.int64)
-        self.bagging_fraction = np.clip(int(self.params['bagging_fraction'] * self.n_samples), 1, self.n_samples, dtype=np.int64)
         # Pre-allocate arrays
         nodes_idx = np.zeros((self.params['n_estimators'], self.params['max_nodes']), dtype=np.int64)
         nodes_split_feature = np.zeros_like(nodes_idx)
@@ -296,7 +421,7 @@ class PGBM(object):
         if valid_set is not None:
             validate = True
             early_stopping = 0
-            X_validate, y_validate = valid_set[0], valid_set[1].squeeze()
+            X_validate, y_validate = valid_set[0].astype(np.float64), valid_set[1].squeeze().astype(np.float64)
             if new_model:
                 yhat_validate = self.yhat_0.repeat(y_validate.shape[0])
                 self.best_score = np.inf
@@ -316,9 +441,9 @@ class PGBM(object):
                 # Retrieve bagging batch
                 samples = rng.choice(self.n_samples, self.bagging_fraction)
                 # Create tree
-                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['min_sum_hessian_in_leaf'], self.params['split_parallel'])
+                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits[:, samples], gradient[samples], hessian[samples], estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['split_parallel'], self.params['monotone_constraints'], self.any_monotone, self.params['monotone_iterations'])
             else:
-                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits, gradient, hessian, estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['min_sum_hessian_in_leaf'], self.params['split_parallel'])                
+                self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance = self._create_tree(X_train_splits, gradient, hessian, estimator, train_nodes, self.bins, self.nodes_idx, self.nodes_split_feature, self.nodes_split_bin, self.leaves_idx, self.leaves_mu, self.leaves_var, self.feature_importance, self.params['lambda'], self.params['max_nodes'], self.params['max_leaves'], self.params['max_bin'], self.feature_fraction, self.params['min_split_gain'], self.params['min_data_in_leaf'], self.params['split_parallel'], self.params['monotone_constraints'], self.any_monotone, self.params['monotone_iterations'])                
             # Get predictions for all samples
             yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator, self.nodes_idx[estimator], self.nodes_split_feature[estimator], self.nodes_split_bin[estimator], self.leaves_idx[estimator], self.leaves_mu[estimator], self.leaves_var[estimator], self.params['learning_rate'], self.params['tree_correlation'], dist)
             # Compute new gradient and hessian
@@ -374,6 +499,7 @@ class PGBM(object):
             parallel (boolean): not applicable. Only in place to support easy switching between 
                 Torch and Numba backend.
         """
+        X = X.astype(np.float64)
         dist = False
         yhat0 = self.yhat_0.repeat(X.shape[0])
         mu = np.zeros(X.shape[0], dtype=np.float64)
@@ -408,6 +534,7 @@ class PGBM(object):
                 the function will return a tuple (forecasts, mu, variance) with the latter arrays containing the learned
                 mean and variance per sample that can be used to parameterize a distribution.
         """
+        X = X.astype(np.float64)
         dist = True
         yhat0 = self.yhat_0.repeat(X.shape[0])
         mu = np.zeros(X.shape[0], dtype=np.float64)
@@ -597,12 +724,14 @@ class PGBM(object):
             y (array of [n_samples]): ground truth for sample set X.
             n_permutations (integer): number of random permutations to perform for each feature.
         """
+        X = X.astype(np.float64)
         n_samples = X.shape[0]
         n_features = X.shape[1]
         permutation_importance_metric = np.zeros((n_features, n_permutations), dtype=np.float64)
         # Calculate base score
         yhat_base = self.predict(X)
         if y is not None:
+            y = y.astype(np.float64)
             base_metric = self.metric(yhat_base, y)
         # Loop over permuted features
         for feature in range(n_features):
@@ -640,6 +769,7 @@ class PGBM(object):
                 normal, studentt, laplace, logistic, lognormal, gamma, gumbel, weibull, negativebinomial, poisson.
             tree_correlations (vector): optional, vector containing tree correlations to use in optimization procedure.
         """                
+        X, y = X.astype(np.float64), y.astype(np.float64)
         # List of distributions and tree correlations
         if distributions == None:
             distributions = ['normal', 'studentt', 'laplace', 'logistic', 
@@ -698,8 +828,25 @@ def _leaf_prediction(gradient, hessian, node, estimator, lampda, leaf_idx, leave
     
     return leaf_idx, leaves_idx, leaves_mu, leaves_var
 
+@njit(fastmath=True, parallel=True)
+def _mu_prediction(gradient, hessian, node, estimator, lampda, leaf_idx, leaves_idx, leaves_mu, leaves_var):
+    # Empirical mean
+    gradient_mean = np.mean(gradient)
+    hessian_mean = np.mean(hessian)
+    # Empirical variance
+    N = len(gradient)
+    factor = 1 / (N - 1)
+    hessian_variance = factor * np.sum((hessian - hessian_mean)**2)
+    # Empirical covariance
+    covariance = factor * np.sum((gradient - gradient_mean)*(hessian - hessian_mean))
+    # Mean and variance of the leaf prediction
+    lambda_scaled = lampda / N
+    mu = gradient_mean / ( hessian_mean + lambda_scaled) - covariance / (hessian_mean + lambda_scaled)**2 + (hessian_variance * gradient_mean) / (hessian_mean + lambda_scaled)**3     
+    
+    return mu
+
 @njit(fastmath=True)
-def wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian, n_bins, Gl_t, Hl_t):
+def wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian, n_bins, Gl_t, Hl_t, Glc_t):
     for i in range(X.shape[0]):
         for j in range(start_idx[thread_idx], stop_idx[thread_idx]):
             current_grad = gradient[j]
@@ -710,6 +857,7 @@ def wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian
             while flag:
                 Gl_t[thread_idx, i, k] += current_grad
                 Hl_t[thread_idx, i, k] += current_hess
+                Glc_t[thread_idx, i, k] += 1
                 k += 1
                 flag = (k <  Xc) 
 
@@ -720,14 +868,15 @@ def _split_decision_sample_parallel(X, gradient, hessian, n_bins):
     n_features = X.shape[0]
     Gl_t = np.zeros((n_threads, n_features, n_bins), dtype=np.float64)
     Hl_t = np.zeros((n_threads, n_features, n_bins), dtype=np.float64)
+    Glc_t = np.zeros((n_threads, n_features, n_bins), dtype=np.float64)
     idx = np.linspace(0, n_samples, n_threads + 1)
     start_idx = idx[:-1]
     stop_idx = idx[1:]
     
     for thread_idx in prange(n_threads):
-        wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian, n_bins, Gl_t, Hl_t)
+        wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian, n_bins, Gl_t, Hl_t, Glc_t)
         
-    return Gl_t.sum(0), Hl_t.sum(0)
+    return Gl_t.sum(0), Hl_t.sum(0), Glc_t.sum(0)
        
 @njit(parallel=True, fastmath=True)
 def _split_decision_feature_parallel(X, gradient, hessian, n_bins):
@@ -735,6 +884,7 @@ def _split_decision_feature_parallel(X, gradient, hessian, n_bins):
     n_features = X.shape[0]
     Gl = np.zeros((n_features, n_bins), dtype=np.float64)
     Hl = np.zeros((n_features, n_bins), dtype=np.float64)    
+    Glc = np.zeros((n_features, n_bins), dtype=np.float64)
     
     for i in prange(n_features):
         for j in range(n_samples):
@@ -746,10 +896,11 @@ def _split_decision_feature_parallel(X, gradient, hessian, n_bins):
             while flag:
                 Gl[i, k] += current_grad
                 Hl[i, k] += current_hess
+                Glc[i, k] += 1
                 k += 1
                 flag = (k <  Xc) 
     
-    return Gl, Hl
+    return Gl, Hl, Glc
 
 @njit(parallel=True, fastmath=True)
 def _permute_X(X, feature, n_permutations):

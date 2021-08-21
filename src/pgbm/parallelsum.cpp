@@ -46,10 +46,11 @@ std::vector<torch::Tensor> split_decision_cpu(
   auto device = X.device();
   auto range = torch::arange(n_bins, torch::device(device));
   auto left_idx = torch::gt(X.unsqueeze(-1), range).to(torch::dtype(torch::kF32));
+  auto Glc = left_idx.sum(1);
   auto Gl = torch::einsum("i, jik -> jk", {gradient, left_idx});
   auto Hl = torch::einsum("i, jik -> jk", {hessian, left_idx});
 
-  return {Gl, Hl};
+  return {Gl, Hl, Glc};
 }
 
 // Switch function. NB: should be able to define this with a TorchLibrary but that does not work :(
