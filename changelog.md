@@ -1,3 +1,11 @@
+## v1.2 ##
+* Fixed a bug in `monotone_constraints` calculation.
+* Added a sklearn wrapper for both backends - `PGBMRegressor` is now available as a sklearn estimator.
+* Renamed `levels_train` attribute in `train` function to `sample_weight` and `levels_valid` to `eval_sample_weight`, such that it is easier to understand what these parameters to.
+* Added `sample_weight` and `eval_sample_weight` to Numba backend.
+* Added stability constant epsilon to variance calculation to prevent division by zero (mostly happened on Numba backend, due to its higher precision in case there is a zero gradient mean in a leaf)
+* Fixed bug that caused error for `min_data_in_leaf`, was caused by too low precision (BFloat16 of split count array in CUDA kernel). Set default `min_data_in_leaf` back to `2`.
+
 ## v1.1 ##
 * Fixed a bug in bin calculation of Torch version that caused incorrect results on most outer quantiles of feature values.
 * Added `monotone_constraints` as a parameter. This allows to force the algorithm to maintain an positive or negative monotonic relationship of the output with respect to the input features.
@@ -20,7 +28,7 @@
 * JIT'ed `crps_ensemble` in Numba backend.
 * Fixed bug where Torch-backend could not read Numba-backend trained models.
 * Simpler bin calculation in Torch backend using torch.quantile.
-* Completely rewrote distributed training. There is now a separate pgbm version `pgbm_dist` that allows distributed training for multinode and multigpu training. This offers significant speedup over the previous dataparallel implementation within `pgbm`.
+* Completely rewrote distributed training. 
 * Changed default seed.
 * Bagging and feature subsampling is now only done in case these parameters are set different from their default values. This offers slight speedup for larger datasets.
 * Fixed bug with `min_data_in_leaf`.

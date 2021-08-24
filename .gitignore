@@ -138,5 +138,5 @@ notes/
 *.csv
 *.model
 *.h5
+/tests
 /benchmarks
-/pgbm_dist

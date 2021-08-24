@@ -17,8 +17,21 @@ In addition, we support the following features:
 * Checkpointing (continuing training of a model after saving) ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example12_bostonhousing_checkpointing.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example12_bostonhousing_checkpointing.py))
 * Feature importance by gain and permutation ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example09_bostonhousing_featimportance.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example09_bostonhousing_featimportance.py))
 * Monotone constraints ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example15_monotone_constraints.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example13_monotone_constraints.py))
+* Scikit-learn compatible via `PGBMRegressor` class. 
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
+
+Below a simple example using our sklearn wrapper:
+```
+from pgbm import PGBMRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import load_boston
+X, y = load_boston(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+model = PGBMRegressor().fit(X_train, y_train)  
+yhat_point = model.predict(X_test)
+yhat_dist = model.predict_dist(X_test)
+```
 
 ### Installation ###
 Run `pip install pgbm` from a terminal within a Python (virtual) environment of your choice.
@@ -41,9 +54,11 @@ The core package has the following dependencies which should be installed separa
 * PyTorch >= 1.8.0, with CUDA 10.2 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
 * PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but [open an issue](https://github.com/elephaint/pgbm/issues) if you find it still not working even after installing these dependencies. 
 * The CUDA device should have CUDA compute ability 6.x or higher.
+* Scikit-learn in case you want to use our sklearn wrapper `PGBMRegressor`. (https://scikit-learn.org/stable/)
 
 ##### Numba backend #####
 * Numba >= 0.53.1 (https://numba.readthedocs.io/en/stable/user/installing.html). 
+* Scikit-learn in case you want to use our sklearn wrapper `PGBMRegressor`. (https://scikit-learn.org/stable/)
 
 The Numba backend does not support differentiable loss functions and GPU training is also not supported using this backend.
 

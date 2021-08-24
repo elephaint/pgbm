@@ -25,13 +25,13 @@ import pandas as pd
 import numpy as np
 from datasets import get_dataset, get_fold
 #%% Objective
-def objective(yhat, y, levels=None):
+def objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
     
     return gradient, hessian
 
-def rmseloss_metric(yhat, y, levels=None):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss

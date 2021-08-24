@@ -33,6 +33,9 @@ from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, Log
 from torch.utils.cpp_extension import load
 from pathlib import Path
 import pickle
+from sklearn.base import BaseEstimator
+from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
+from sklearn.metrics import r2_score
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(nn.Module):
     def __init__(self, size=1, rank=0):
@@ -51,7 +54,7 @@ class PGBM(nn.Module):
                        'max_bin', 'n_estimators', 'verbose', 'early_stopping_rounds', 'feature_fraction', 'bagging_fraction', 
                        'seed', 'device', 'gpu_device_id', 'derivatives', 'distribution','checkpoint', 'tree_correlation', 
                        'monotone_constraints', 'monotone_iterations']
-        param_defaults = [0.0, 3, 0.1, 1.0, 32, 
+        param_defaults = [0.0, 2, 0.1, 1.0, 32, 
                           256, 100, 2, 100, 1, 1, 
                           2147483647, 'cpu', 0, 'exact', 'normal', False, np.log10(self.n_samples) / 100, 
                           np.zeros(self.n_features), 1]
@@ -84,7 +87,7 @@ class PGBM(nn.Module):
                 self.params[param] = torch.tensor(self.params[param], device=self.device, dtype=torch.float32)
                 
         # Make sure we bound certain parameters
-        self.params['min_data_in_leaf'] = torch.clamp(self.params['min_data_in_leaf'], 3)
+        self.params['min_data_in_leaf'] = torch.clamp(self.params['min_data_in_leaf'], 2)
         self.params['min_split_gain'] = torch.clamp(self.params['min_split_gain'], 0.0)
         self.params['monotone_iterations'] = np.maximum(self.params['monotone_iterations'], 1)
         self.feature_fraction = torch.tensor(self.params['feature_fraction'] * self.n_features, device = self.device, dtype=torch.int64).clamp(1, self.n_features)
@@ -94,8 +97,11 @@ class PGBM(nn.Module):
         assert len(self.params['monotone_constraints']) == self.n_features, "The number of items in the monotonicity constraint list should be equal to the number of features in your dataset."
         self.params['max_nodes'] = self.params['max_leaves'] - 1
         self.any_monotone = torch.any(self.params['monotone_constraints'] != 0)
-        self.rng = torch.Generator(self.device)
-        self.rng.manual_seed(self.params['seed'])
+        if self.params['feature_fraction'] < 1:
+            self.rng = torch.Generator(self.device)
+            self.rng.manual_seed(self.params['seed'])
+        torch.manual_seed(self.params['seed'])  # cpu
+        torch.cuda.manual_seed_all(self.params['seed'])  
         self.epsilon = 1.0e-4
 
     def _create_feature_bins(self, X):
@@ -163,8 +169,9 @@ class PGBM(nn.Module):
         if return_mu:
             return mu
         else:
-            var = mu**2 * (gradient_variance / gradient_mean**2 + hessian_variance / (hessian_mean + lambda_scaled)**2
-                            - 2 * covariance / (gradient_mean * (hessian_mean + lambda_scaled) ) )
+            epsilon = 1e-6
+            var = mu**2 * (gradient_variance / (gradient_mean + epsilon)**2 + hessian_variance / (hessian_mean + lambda_scaled)**2
+                            - 2 * covariance / (gradient_mean * (hessian_mean + lambda_scaled) + epsilon) )
             # Save optimal prediction and node information
             self.leaves_idx[estimator, self.leaf_idx] = node
             self.leaves_mu[estimator, self.leaf_idx] = mu             
@@ -289,7 +296,6 @@ class PGBM(nn.Module):
                                 # Get new split. Check if split_gain is still sufficient, because we might end up with having only constraint invalid splits (i.e. all split_gain <= 0).
                                 split_gain = split_gain_tot_flat.max()
                                 # Check if new proposed split is allowed, otherwise break loop
-                                split_constraint = self.params['monotone_constraints'][sample_features[split_feature_sample]]
                                 split = (split_gain > self.params['min_split_gain']) * (split_iters < self.params['monotone_iterations'])
                                 if not split: break
                                 # Find new split
@@ -303,20 +309,21 @@ class PGBM(nn.Module):
                                 mu_left = self._leaf_prediction(gradient[split_left], hessian[split_left], node * 2, estimator, return_mu=True)
                                 mu_right = self._leaf_prediction(gradient[split_right], hessian[split_right], node * 2 + 1, estimator, return_mu=True)
                                 # Check if new proposed split has a monotonicity constraint
+                                split_constraint = self.params['monotone_constraints'][sample_features[split_feature_sample]]
                                 condition = split * (((mu_left < node_min) + (mu_left > node_max) + (mu_right < node_min) + (mu_right > node_max)) + ((split_constraint != 0) * (torch.sign(mu_right - mu_left) != split_constraint)))
                                 split_iters += 1
                             # Only create a split if there still is a split to make...
                             if split:
                                 # Compute min and max values for children nodes
                                 if split_constraint == 1:
-                                    left_node_min = -np.inf
+                                    left_node_min = node_min
                                     left_node_max = mu_right
                                     right_node_min = mu_left
-                                    right_node_max = np.inf                                    
+                                    right_node_max = node_max                                    
                                 elif split_constraint == -1:
                                     left_node_min = mu_right
-                                    left_node_max = np.inf
-                                    right_node_min = -np.inf
+                                    left_node_max = node_max
+                                    right_node_min = node_min
                                     right_node_max = mu_left
                                 else:
                                     left_node_min = node_min
@@ -499,14 +506,14 @@ class PGBM(nn.Module):
         return X_splits
     
     def _convert_array(self, array):
-        if type(array) == np.ndarray:
+        if (type(array) == np.ndarray) or (type(array) == np.memmap):
             array = torch.from_numpy(array).float()
         elif type(array) == torch.Tensor:
             array = array.float()
         
         return array.to(self.device)
     
-    def train(self, train_set, objective, metric, params=None, valid_set=None, levels_train=None, levels_valid=None):
+    def train(self, train_set, objective, metric, params=None, valid_set=None, sample_weight=None, eval_sample_weight=None):
         """
         Train a PGBM model.
         
@@ -529,8 +536,8 @@ class PGBM(nn.Module):
             params (dictionary): Dictionary containing the learning parameters of a PGBM model. 
             valid_set (tuple of ([n_validation_samples x n_features], [n_validation_samples])): sample set (X, y) on which to validate 
                 the PGBM model, where X contains the features of the samples and y is the ground truth.
-            levels_train (dictionary of arrays): if the objective requires a levels variable, it can supplied here.
-            levels_valid (dictionary of arrays): if the metric requires a levels variable, it can supplied here.
+            sample_weight (vector of shape [n_training_samples] or dictionary of arrays): sample weights for the training data.
+            eval_sample_weight (vector of shape [n_training_samples] or dictionary of arrays): sample weights for the validation data.
         """
         # Create parameters
         if params is None:
@@ -603,7 +610,7 @@ class PGBM(nn.Module):
                 self.best_score = torch.tensor(float('inf'), device = self.device, dtype=torch.float32)
             else:
                 yhat_validate = self.predict(X_validate)
-                validation_metric = metric(yhat_validate, y_validate, levels_valid)
+                validation_metric = metric(yhat_validate, y_validate, eval_sample_weight)
                 if self.distributed:
                     dist.all_reduce(validation_metric, op=dist.ReduceOp.SUM)
                     validation_metric /= self.world_size
@@ -612,7 +619,7 @@ class PGBM(nn.Module):
             X_validate_splits = self._create_X_splits(X_validate)
 
         # Retrieve initial loss and gradient
-        gradient, hessian = self.objective(yhat_train, y_train, levels_train)      
+        gradient, hessian = self.objective(yhat_train, y_train, sample_weight)      
         # Loop over estimators
         for estimator in range(start_iteration, self.params['n_estimators'] + start_iteration):
             # Retrieve bagging batch
@@ -625,9 +632,9 @@ class PGBM(nn.Module):
             # Get predictions for all samples
             yhat_train, _ = self._predict_tree(X_train_splits, yhat_train, yhat_train*0., estimator)
             # Compute new gradient and hessian
-            gradient, hessian = self.objective(yhat_train, y_train, levels_train)
+            gradient, hessian = self.objective(yhat_train, y_train, sample_weight)
             # Compute metric
-            train_metric = metric(yhat_train, y_train, levels_train)
+            train_metric = metric(yhat_train, y_train, sample_weight)
             # Synchronize across processes: we just add all process metrics and take the mean, this is a simplification
             if self.distributed:
                 dist.all_reduce(train_metric, op=dist.ReduceOp.SUM)
@@ -637,7 +644,7 @@ class PGBM(nn.Module):
             # Validation statistics
             if validate:
                 yhat_validate, _ =  self._predict_tree(X_validate_splits, yhat_validate, yhat_validate*0., estimator) 
-                validation_metric = metric(yhat_validate, y_validate, levels_valid)
+                validation_metric = metric(yhat_validate, y_validate, eval_sample_weight)
                 if self.distributed:
                     dist.all_reduce(validation_metric, op=dist.ReduceOp.SUM)
                     validation_metric /= self.world_size
@@ -1078,3 +1085,306 @@ class PGBM(nn.Module):
         self.params['tree_correlation'] = tree_correlation_best
         
         return (distribution_best, tree_correlation_best)   
+
+class PGBMRegressor(BaseEstimator):
+    """
+    Probabilistic Gradient Boosting Machines (PGBM) Regressor.
+    
+    PGBMRegressor fits a Gradient Boosting Machine regression model and returns
+    point and probabilistic predictions.
+    
+    This class uses PyTorch as backend.
+    
+    Ref:
+       Olivier Sprangers, Sebastian Schelter, Maarten de Rijke. 
+       Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression.
+       https://arxiv.org/abs/2106.0168 
+       Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and
+       Data Mining (KDD ’21), August 14–18, 2021, Virtual Event, Singapore.
+       https://doi.org/10.1145/3447548.3467278
+            
+    ----------
+    objective : str or function, default='mse'
+        Objective function to minimize. If not 'mse', a user defined objective 
+        function should be supplied in the form of:
+            
+        (A): in case parameter "derivatives='exact'"
+            
+            def objective(y, yhat, sample_weight=None):
+                [......]
+                
+                return gradient, hessian
+            
+            in which gradient and hessian are of the same shape as y.
+        
+        (B): in case parameter "derivatives='approx'"
+
+            def objective(y, yhat, sample_weight=None):
+                [......]
+                
+                return loss
+            
+            in which loss is a scalar, differentiable loss.
+
+    metric : str or function, default='rmse'
+        Metric to evaluate predictions during training and evaluation. If not 
+        'rmse', a user defined metric should be supplied in the form of:
+            
+            def metric(y, yhat, sample_weight=None):
+                [......]
+                
+                return metric
+        
+            in which metric is a scalar.
+
+    max_leaves : int, default=32 
+        The maximum number of leaves per tree. Increase this value to create 
+        more complicated trees, and reduce the value to create simpler trees 
+        (reduce overfitting).
+        
+    learning_rate : float, default=0.1, constraint>0
+        The learning rate of the algorithm; the amount of each new tree 
+        prediction that should be added to the ensemble.
+
+    n_estimators : int, default=100, constraint>0
+        The number of trees to create. Typically setting this value higher may 
+        improve performance, at the expense of training speed and potential for 
+        overfit. Use in conjunction with learning rate and max_leaves; more 
+        trees generally requires a lower learning_rate and/or a lower max_leaves.
+        
+    min_split_gain : float, default = 0.0, constraint >= 0.0 
+        The minimum gain for a node to split when building a tree.
+        
+    min_data_in_leaf : int, default= 3, constraint>= 3. 
+        The minimum number of samples in a leaf of a tree. Increase this value 
+        to reduce overfit.
+        
+    bagging_fraction : float, default=1, constraint>0, constraint<=1. 
+        Fraction of samples to use when building a tree. Set to a value between
+        0 and 1 to randomly select a portion of samples to construct each new 
+        tree. A lower fraction speeds up training (and can be used to deal with
+        out-of-memory issues when training on GPU) and may reduce overfit.
+        
+    feature_fraction : float, default=1, constraint>0, constraint<=1.
+        Fraction of features to use when building a tree. Set to a value between
+        0 and 1 to randomly select a portion of features to construct each new 
+        tree. A lower fraction speeds up training (and can be used to deal with
+        out-of-memory issues when training on GPU) and may reduce overfit. 
+
+    max_bin : int, default=256, constraint<32,767
+        The maximum number of bins used to bin continuous features. Increasing 
+        this value can improve prediction performance, at the cost of training 
+        speed and potential overfit.
+
+    reg_lambda : float, default=1.0, constraint>0
+        Regularization parameter.
+        
+    random_state : int, default=2147483647
+        Random seed to use for feature_fraction and bagging_fraction (latter 
+        only for Numba backend - for speed considerations the Torch backend 
+        bagging_fraction determination is not yet deterministic).
+        
+    device : str, default=cpu
+        Traininig device. Choices are 'cpu' or 'gpu'.
+        
+    gpu_device_id : int, default=0 
+        Integer with the index of the GPU used for training. Change this when
+        you'd like to train on a different GPU within your node. For multi-gpu
+        and multinode training, use the Python API (not this sklearn wrapper)
+        
+    derivatives : str, default=exact. 
+        If a loss function with an analytical gradient and hessian is provided,
+        use 'exact'. If a loss function with a scalar, differentiable loss is
+        provided, use approx to let PyTorch use auto-differentiation to 
+        calculate the gradient and (approximate) hessian.
+     
+    distribution : str, default='normal'
+        Choice of output distribution for probabilistic predictions. Choices 
+        are normal, studentt, laplace, logistic, gamma, gumbel, poisson. Note 
+        that the studentt distribution has a constant degree-of-freedom of 3.
+    
+    checkpoint : bool, default=False
+        Boolean to save a model checkpoint after each iteration to the current 
+        working directory.
+    
+    tree_correlation : float, default=np.log_10(n_samples) / 100
+        Tree correlation hyperparameter. This controls the amount of 
+        correlation we assume to exist between each subsequent tree in the 
+        ensemble.
+            
+    monotone_iterations : int, default=1. The number of alternative splits that
+        will be considered if a monotone constraint is violated by the current
+        split proposal. Increase this to improve accuracy at the expense of 
+        training speed. Note: the monotone_constraints need to be set in the
+        .fit() method. 
+        
+    verbose : int, default=2.
+        Flag to output metric results for each iteration. Set to 1 to supress 
+        output.
+
+    
+    Attributes
+    ----------
+    learner_ : Fitted PGBM learner.         
+    
+    Examples
+    --------
+    >>> from pgbm import PGBMRegressor
+    >>> from sklearn.model_selection import train_test_split
+    >>> from sklearn.datasets import load_boston
+    >>> X, y = load_boston(return_X_y=True)
+    >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+    >>> model = PGBMRegressor().fit(X_train, y_train)  
+    >>> yhat_point = model.predict(X_test)
+    >>> yhat_dist = model.predict_dist(X_test)
+    """
+    def __init__(self, objective='mse', metric='rmse', max_leaves=32, learning_rate=0.1, n_estimators=100,
+                 min_split_gain=0.0, min_data_in_leaf=3, bagging_fraction=1, feature_fraction=1, max_bin=256,
+                 reg_lambda=1.0, random_state=2147483647, device='cpu', gpu_device_id=0, derivatives='exact',
+                 distribution='normal', checkpoint=False, tree_correlation=None, monotone_iterations=1, 
+                 verbose=2):
+        # Set parameters
+        self.objective = objective
+        self.metric = metric
+        self.max_leaves = max_leaves
+        self.learning_rate = learning_rate
+        self.n_estimators = n_estimators
+        self.min_split_gain = min_split_gain
+        self.min_data_in_leaf = min_data_in_leaf
+        self.bagging_fraction = bagging_fraction
+        self.feature_fraction = feature_fraction
+        self.max_bin = max_bin
+        self.reg_lambda = reg_lambda
+        self.random_state = random_state
+        self.device = device
+        self.gpu_device_id = gpu_device_id
+        self.derivatives = derivatives
+        self.distribution = distribution
+        self.checkpoint = checkpoint
+        self.tree_correlation = tree_correlation
+        self.monotone_iterations = monotone_iterations
+        self.verbose = verbose
+        
+    def fit(self, X, y, eval_set=None, sample_weight=None, eval_sample_weight=None,
+            early_stopping_rounds=None, monotone_constraints=None):
+        # Set estimator type
+        self._estimator_type = "regressor"
+        # Check that X and y have correct shape and convert to float32
+        X, y = check_X_y(X, y)
+        X, y = X.astype(np.float32), y.astype(np.float32)
+        self.n_features_in_ = X.shape[1]
+        # Check eval set
+        if eval_set is not None:
+            X_valid, y_valid = eval_set[0], eval_set[1]
+            X_valid, y_valid = check_X_y(X_valid, y_valid)
+            X_valid, y_valid = X_valid.astype(np.float32), y_valid.astype(np.float32)
+
+        # Check parameter values and create parameter dict
+        params = {'min_split_gain':self.min_split_gain,
+                  'min_data_in_leaf':self.min_data_in_leaf,
+                  'max_leaves':self.max_leaves,
+                  'max_bin':self.max_bin,
+                  'learning_rate':self.learning_rate,
+                  'n_estimators':self.n_estimators,
+                  'verbose':self.verbose,
+                  'early_stopping_rounds': early_stopping_rounds,
+                  'feature_fraction':self.feature_fraction,
+                  'bagging_fraction':self.bagging_fraction,
+                  'seed':self.random_state,
+                  'lambda':self.reg_lambda,
+                  'device':self.device,
+                  'gpu_device_id':self.gpu_device_id,
+                  'derivatives':self.derivatives,
+                  'distribution':self.distribution,
+                  'monotone_iterations': self.monotone_iterations,
+                  'checkpoint': self.checkpoint}
+        if self.tree_correlation is not None: 
+            params['tree_correlation'] = self.tree_correlation
+        if monotone_constraints is not None:
+            params['monotone_constraints'] = monotone_constraints
+
+        # Set objective and metric. If default, override derivatives argument
+        if (self.objective == 'mse'):
+            self._objective = self._mseloss_objective
+            params['derivatives'] = 'exact'
+        else:
+            self._objective = self.objective
+        if (self.metric == 'rmse'):
+            self._metric = self._rmseloss_metric
+        else:
+            self._metric = self.metric    
+        # Check sample weight shape
+        torch_array = lambda array: torch.from_numpy(np.array(array).astype(np.float32)).float()
+        device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
+        if sample_weight is not None: 
+            sample_weight = check_array(sample_weight, ensure_2d=False)
+            if len(sample_weight) != len(y):
+                raise ValueError('Length of sample_weight does not equal length of X and y')
+            sample_weight = torch_array(sample_weight).to(device)
+        if eval_sample_weight is not None: 
+            eval_sample_weight = check_array(eval_sample_weight, ensure_2d=False)
+            if len(eval_sample_weight) != len(y_valid):
+                raise ValueError("Length of eval_sample_weight does not equal length of X_valid and y_valid")
+            eval_sample_weight = torch_array(eval_sample_weight).to(device)
+
+        # Train model
+        self.learner_ = PGBM()
+        self.learner_.train(train_set=(X, y), valid_set=eval_set, params=params, objective=self._objective, 
+                         metric=self._metric, sample_weight=sample_weight, 
+                         eval_sample_weight=eval_sample_weight)
+        
+        return self
+
+    def predict(self, X, parallel=True):
+        check_is_fitted(self)
+        X = check_array(X)
+        X = X.astype(np.float32)
+        
+        return self.learner_.predict(X, parallel).cpu().numpy()
+    
+    def score(self, X, y, sample_weight=None, parallel=True):
+        # Checks
+        X, y = check_X_y(X, y)
+        X, y = X.astype(np.float32), y.astype(np.float32)
+        # Make prediction
+        yhat = self.predict(X, parallel)
+        
+        # Check sample weight shape
+        torch_array = lambda array: torch.from_numpy(np.array(array).astype(np.float32)).float()
+        device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
+        if sample_weight is not None: 
+            sample_weight = check_array(sample_weight, ensure_2d=False)
+            if len(sample_weight) != len(y):
+                raise ValueError("Length of sample_weight does not equal length of X and y")
+            sample_weight = torch_array(sample_weight).to(device)
+                
+        # Score prediction with r2
+        score = r2_score(y, yhat, sample_weight)
+        
+        return score
+    
+    def predict_dist(self, X, n_forecasts=100, parallel=True, output_sample_statistics=False):
+        check_is_fitted(self)
+        X = check_array(X)
+        X = X.astype(np.float32)
+        
+        return self.learner_.predict_dist(X, n_forecasts, parallel, output_sample_statistics).cpu().numpy()
+        
+    def _mseloss_objective(self, yhat, y, sample_weight=None):
+        gradient = (yhat - y)
+        hessian = torch.ones_like(yhat)
+        
+        if sample_weight is not None:
+            gradient *= sample_weight
+            hessian *= sample_weight   
+    
+        return gradient, hessian
+    
+    def _rmseloss_metric(self, yhat, y, sample_weight=None):
+        error = (yhat - y)
+        if sample_weight is not None:
+            error *= sample_weight
+        
+        loss = torch.sqrt(torch.mean(torch.square(error)))
+    
+        return loss

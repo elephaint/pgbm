@@ -29,7 +29,7 @@ __global__ void _kernel_psum(
   const torch::PackedTensorAccessor32<float,1,torch::RestrictPtrTraits> hessian,
   torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Gl_block,
   torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Hl_block,
-  torch::PackedTensorAccessor32<at::BFloat16,3,torch::RestrictPtrTraits> Glc_block) {
+  torch::PackedTensorAccessor32<float,3,torch::RestrictPtrTraits> Glc_block) {
   
   // Sample index
   unsigned int ti_x = threadIdx.x;
@@ -143,7 +143,7 @@ std::vector<torch::Tensor> _split_decision_cuda(
     // Use bfloat16 to reduce memory consumption.
     auto Gl_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(at::ScalarType::BFloat16).device(X.device()));
     auto Hl_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(at::ScalarType::BFloat16).device(X.device()));
-    auto Glc_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(at::ScalarType::BFloat16).device(X.device()));
+    auto Glc_block = torch::zeros({bpg_x, n_features, n_bins}, torch::dtype(torch::kF32).device(X.device()));
     //  Run kernel
     _kernel_psum<<<numBlocks, threadsPerBlock>>>(
       X.packed_accessor32<unsigned char,2,torch::RestrictPtrTraits>(),
@@ -151,11 +151,11 @@ std::vector<torch::Tensor> _split_decision_cuda(
       hessian.packed_accessor32<float,1,torch::RestrictPtrTraits>(),
       Gl_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
       Hl_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>(),
-      Glc_block.packed_accessor32<at::BFloat16,3,torch::RestrictPtrTraits>());
+      Glc_block.packed_accessor32<float,3,torch::RestrictPtrTraits>());
     // Return Gl, Hl
     Gl = Gl_block.sum(0).to(torch::kF32);
     Hl = Hl_block.sum(0).to(torch::kF32);
-    Glc = Glc_block.sum(0).to(torch::kF32);
+    Glc = Glc_block.sum(0);
     }
   else { 
     // Constraint: this solution works up to ~67M n_samples (but then you'll probably have a GPU OOM error anyways...)

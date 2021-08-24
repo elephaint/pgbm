@@ -27,18 +27,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datasets import get_dataset, get_fold
 #%% Objective
-def objective(yhat, y, levels=None):
+def objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
     
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
 
-def rmseloss_metric_np(yhat, y):
+def rmseloss_metric_np(yhat, y, sample_weight=None):
     loss = np.sqrt(np.mean((yhat - y)**2))
     return loss    
 #%% Generic Parameters

@@ -22,13 +22,13 @@ from pgbm import PGBM
 from sklearn.model_selection import train_test_split
 from datasets import get_dataset, get_fold
 #%% Objective
-def objective(yhat, y, levels=None):
+def objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
     
     return gradient, hessian
 
-def rmseloss_metric(yhat, y, levels=None):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
@@ -37,7 +37,7 @@ def rmseloss_metric(yhat, y, levels=None):
 # PGBM specific
 method = 'pgbm'
 params = {'min_split_gain':0,
-      'min_data_in_leaf':3,
+      'min_data_in_leaf':2,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,

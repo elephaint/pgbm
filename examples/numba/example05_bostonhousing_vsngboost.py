@@ -25,13 +25,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ngboost import NGBRegressor
 #%% Objective for pgbm
-def mseloss_objective(yhat, y):
+def mseloss_objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = np.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = np.sqrt(np.mean(np.square(yhat - y)))
 
     return loss
@@ -39,7 +39,7 @@ def rmseloss_metric(yhat, y):
 X, y = load_boston(return_X_y=True)
 #%% Parameters
 params = {'min_split_gain':0,
-      'min_data_in_leaf':3,
+      'min_data_in_leaf':2,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,

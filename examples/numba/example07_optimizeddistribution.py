@@ -22,13 +22,13 @@ from pgbm_nb import PGBM
 from sklearn.model_selection import train_test_split
 from datasets import get_dataset, get_fold
 #%% Objective
-def objective(yhat, y):
+def objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = np.ones_like(yhat)
     
     return gradient, hessian
 
-def rmseloss_metric(yhat, y):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = np.sqrt(np.mean(np.square(yhat - y)))
 
     return loss

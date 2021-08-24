@@ -24,21 +24,21 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
 #%% Objective for pgbm
-def mseloss_objective(yhat, y, levels=None):
+def mseloss_objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y, levels=None):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
 #%% Load data
 X, y = load_boston(return_X_y=True)
 #%% Parameters
-params = {'min_split_gain':0.01,
-      'min_data_in_leaf':3,
+params = {'min_split_gain':0,
+      'min_data_in_leaf':2,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,

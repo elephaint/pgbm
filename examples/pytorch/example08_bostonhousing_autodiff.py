@@ -23,12 +23,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_boston
 import matplotlib.pyplot as plt
 #%% Objective for pgbm
-def mseloss_objective(yhat, y, levels=None):
+def mseloss_objective(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean()
 
     return loss
 
-def rmseloss_metric(yhat, y, levels=None):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss

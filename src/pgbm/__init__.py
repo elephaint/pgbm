@@ -1,1 +1,1 @@
-from .pgbm import PGBM
+from .pgbm import PGBM, PGBMRegressor

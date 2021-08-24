@@ -180,7 +180,6 @@ def wmseloss_objective(yhat, y, levels):
             level_day = level[current_day].float()
             level_yd = torch.einsum("i, ij -> j", yd, level_day)
             level_yhatd = torch.einsum("i, ij -> j", yhatd, level_day)
-            n_levels = level.shape[1]
             loss[i + 1] += scale * (level_yhatd - level_yd).pow(2).sum()
 
         level_fyd = yd.sum(0)
@@ -200,9 +199,9 @@ DEVICE = "gpu"
 torch_device = torch.device(DEVICE) if DEVICE == "cpu" else torch.device("cuda")
 
 params = {'min_split_gain':0,
-      'min_data_in_leaf':3,
+      'min_data_in_leaf':2,
       'max_leaves':8,
-      'max_bin':64,
+      'max_bin':256,
       'learning_rate':0.1,
       'n_estimators':2000,
       'verbose':2,
@@ -245,7 +244,7 @@ for fold, date in enumerate(validation_dates):
     train_data = (X_train.values, y_train.values)
     val_data = (X_val.values, y_val.values)
     model = PGBM()
-    model.train(train_data, objective=wmseloss_objective, valid_set = val_data, metric=wmseloss_objective, params=params, levels_train=levels_train, levels_valid=levels_val)
+    model.train(train_data, objective=wmseloss_objective, valid_set = val_data, metric=wmseloss_objective, params=params, sample_weight=levels_train, eval_sample_weight=levels_val)
     # Calculate best fitting tree correlation and distribution for this fold
     for i, tree_correlation in enumerate(tree_correlations):
         for j, distribution in enumerate(distributions):
@@ -288,7 +287,7 @@ X_test, y_test = df_test.iloc[:, :-1], df_test.iloc[:, -1]
 train_data = (X_train.values, y_train.values)
 # Train
 model = PGBM()
-model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)
+model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, sample_weight=levels_train)
 # Predict
 yhat_test = np.clip(model.predict(X_test.values).cpu().numpy(), 0, 1e9)
 yhat_test_dist = model.predict_dist(X_test.values, n_forecasts=n_forecasts)

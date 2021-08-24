@@ -28,13 +28,13 @@ import torch.multiprocessing as mp
 from pgbm import PGBM
 import pandas as pd
 #%% Objective
-def mseloss_objective(yhat, y, levels=None):
+def mseloss_objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 # Metric
-def rmseloss_metric(yhat, y, levels=None):
+def rmseloss_metric(yhat, y, sample_weight=None):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss

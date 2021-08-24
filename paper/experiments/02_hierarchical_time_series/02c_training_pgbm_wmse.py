@@ -138,7 +138,7 @@ params = {'min_split_gain':0,
 #%% Validation loop
 model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, valid_set=valid_data, params=params, levels_train=levels_train, levels_valid=levels_val)
+model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, valid_set=valid_data, params=params, sample_weight=levels_train, eval_sample_weight=levels_val)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 #%% Test loop
@@ -163,7 +163,7 @@ levels_train.append(torch.from_numpy(pd.get_dummies(iteminfo_train['cat_id_enc']
 params['n_estimators'] = model.best_iteration
 model = PGBM()
 start = time.perf_counter()  
-model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, levels_train=levels_train)
+model.train(train_data, objective=wmseloss_objective, metric=wmseloss_objective, params=params, sample_weight=levels_train)
 end = time.perf_counter()
 print(f'Training time: {end - start:.2f}s')
 # Save model
