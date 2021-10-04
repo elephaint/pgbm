@@ -65,7 +65,8 @@ index_to_drop = df_cases[(df_cases.Municipality_code == 'GM0363') & (df_cases.RO
 df_cases = df_cases.drop(index_to_drop)
 df = df.merge(df_cases, how='left', left_on=['Municipality_code'], right_on=['Municipality_code'])
 #%% Wastewater data, resampled to 1D
-df_wastewater =  pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_rioolwaterdata.csv', sep=';', parse_dates=[0], usecols=[1, 2, 3, 5])
+df_wastewater =  pd.read_csv('https://data.rivm.nl/covid-19/COVID-19_rioolwaterdata.csv', sep=';', parse_dates=[1, 2])
+df_wastewater = df_wastewater.drop(columns=['Version', 'Date_of_report'])
 df_wastewater = df_wastewater[df_wastewater['Date_measurement']  >= '2020-10-01']
 df_wastewater = df_wastewater.sort_values(by=['RWZI_AWZI_code', 'Date_measurement'])
 df_wastewater = df_wastewater.reset_index(drop=True)

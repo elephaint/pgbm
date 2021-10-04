@@ -140,3 +140,7 @@ notes/
 *.h5
 /tests
 /benchmarks
+*.feather
+*.parquet
+/docs
+*.csv.gz

@@ -1,3 +1,7 @@
+## v1.3 ##
+* Added `monotone_constraints` as parameter to initialization of `PGBMRegressor` rather than as part of `fit`.
+* Speed improvements of both Numba and PyTorch version.
+
 ## v1.2 ##
 * Fixed a bug in `monotone_constraints` calculation.
 * Added a sklearn wrapper for both backends - `PGBMRegressor` is now available as a sklearn estimator.

@@ -34,7 +34,8 @@ def get_dataset(dataset):
                 'yacht': lambda: pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00243/yacht_hydrodynamics.data', header=None, delim_whitespace=True)}
     if dataset == 'higgs':
         # Pre-download Higgs from https://archive.ics.uci.edu/ml/datasets/HIGGS and extract HIGGS.csv to pgbm/datasets/
-        data = pd.read_csv('HIGGS.csv', header=None)                
+        # data = pd.read_csv('HIGGS.csv', header=None)    
+        data = pd.read_feather('HIGGS.feather')
     elif dataset == 'boston':
         X, y = datasets[dataset]()
         data = pd.DataFrame(np.concatenate((X, y[:, None]), axis=1))

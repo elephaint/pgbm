@@ -247,6 +247,7 @@ class PGBM(nn.Module):
                     # Compute sum
                     Gl = torch.einsum("i, jik -> jk", gradient_node, left_idx);
                     Hl = torch.einsum("i, jik -> jk", hessian_node, left_idx);
+                    
                 # Compute counts of right leafs
                 Grc = len(gradient_node) - Glc;
                 Glc = Glc >= self.params['min_data_in_leaf']
@@ -495,7 +496,7 @@ class PGBM(nn.Module):
     
     def _create_X_splits(self, X):
         # Pre-compute split decisions for Xtrain
-        if (self.params['max_bin'] <= 32) or (self.params['max_bin'] == 64) or (self.params['max_bin'] == 128) or (self.params['max_bin'] == 256):
+        if self.params['max_bin'] <= 256:
             X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.device, dtype=torch.uint8)
         else:
             X_splits = torch.zeros((X.shape[1], X.shape[0]), device=self.device, dtype=torch.int16)
@@ -1211,6 +1212,13 @@ class PGBMRegressor(BaseEstimator):
         Tree correlation hyperparameter. This controls the amount of 
         correlation we assume to exist between each subsequent tree in the 
         ensemble.
+    
+    monotone_contraints : array, default=None. Array detailing
+        monotone constraints for each feature in the dataset, where 0 represents
+        no constraint, 1 a positive monotone constraint, and -1 a negative
+        monotone constraint. For example, for a dataset with 3 features, this 
+        parameter could be [1, 0, -1] for respectively a positive, none and 
+        negative monotone contraint on feature 1, 2 and 3.
             
     monotone_iterations : int, default=1. The number of alternative splits that
         will be considered if a monotone constraint is violated by the current
@@ -1241,8 +1249,8 @@ class PGBMRegressor(BaseEstimator):
     def __init__(self, objective='mse', metric='rmse', max_leaves=32, learning_rate=0.1, n_estimators=100,
                  min_split_gain=0.0, min_data_in_leaf=3, bagging_fraction=1, feature_fraction=1, max_bin=256,
                  reg_lambda=1.0, random_state=2147483647, device='cpu', gpu_device_id=0, derivatives='exact',
-                 distribution='normal', checkpoint=False, tree_correlation=None, monotone_iterations=1, 
-                 verbose=2):
+                 distribution='normal', checkpoint=False, tree_correlation=None, monotone_constraints=None, 
+                 monotone_iterations=1, verbose=2):
         # Set parameters
         self.objective = objective
         self.metric = metric
@@ -1262,11 +1270,12 @@ class PGBMRegressor(BaseEstimator):
         self.distribution = distribution
         self.checkpoint = checkpoint
         self.tree_correlation = tree_correlation
+        self.monotone_constraints = monotone_constraints
         self.monotone_iterations = monotone_iterations
         self.verbose = verbose
         
     def fit(self, X, y, eval_set=None, sample_weight=None, eval_sample_weight=None,
-            early_stopping_rounds=None, monotone_constraints=None):
+            early_stopping_rounds=None):
         # Set estimator type
         self._estimator_type = "regressor"
         # Check that X and y have correct shape and convert to float32
@@ -1300,8 +1309,8 @@ class PGBMRegressor(BaseEstimator):
                   'checkpoint': self.checkpoint}
         if self.tree_correlation is not None: 
             params['tree_correlation'] = self.tree_correlation
-        if monotone_constraints is not None:
-            params['monotone_constraints'] = monotone_constraints
+        if self.monotone_constraints is not None:
+            params['monotone_constraints'] = self.monotone_constraints
 
         # Set objective and metric. If default, override derivatives argument
         if (self.objective == 'mse'):

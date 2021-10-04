@@ -50,7 +50,7 @@ ax[1].set(xlabel = 'Feature value', ylabel='Output')
 #%% Set monotonicity parameters: +1 for positive slope, -1 for negative slope, 0 for no constraint. 
 # Increase monotone_iterations to improve accuracy at the cost of speed.
 monotone_constraints = [-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
-model = PGBMRegressor(monotone_iterations=1).fit(X_train, y_train, monotone_constraints = monotone_constraints)
+model = PGBMRegressor(monotone_iterations=1, monotone_constraints = monotone_constraints).fit(X_train, y_train)
 y0, x0 = partial_dependence(model, X_test, [0])
 y5, x5 = partial_dependence(model, X_test, [5])
 #%% Plot dependencies. 

@@ -854,18 +854,18 @@ def _mu_prediction(gradient, hessian, node, estimator, lampda, leaf_idx, leaves_
 @njit(fastmath=True)
 def wrapper_split_decision(thread_idx, start_idx, stop_idx, X, gradient, hessian, n_bins, Gl_t, Hl_t, Glc_t):
     for i in range(X.shape[0]):
+        Glj = np.zeros(n_bins, dtype=np.float64)
+        Hlj = np.zeros(n_bins, dtype=np.float64)    
+        Glcj = np.zeros(n_bins, dtype=np.float64)
         for j in range(start_idx[thread_idx], stop_idx[thread_idx]):
-            current_grad = gradient[j]
-            current_hess = hessian[j]
-            Xc = X[i, j]
-            k = 0
-            flag = (k <  Xc)
-            while flag:
-                Gl_t[thread_idx, i, k] += current_grad
-                Hl_t[thread_idx, i, k] += current_hess
-                Glc_t[thread_idx, i, k] += 1
-                k += 1
-                flag = (k <  Xc) 
+            idx = X[i, j]
+            Glj[idx] += gradient[j]
+            Hlj[idx] += hessian[j]
+            Glcj[idx] += 1
+        for k in range(n_bins):
+            Gl_t[thread_idx, i, k] = np.sum(Glj[:k+1])
+            Hl_t[thread_idx, i, k] = np.sum(Hlj[:k+1])
+            Glc_t[thread_idx, i, k] = np.sum(Glcj[:k+1])
 
 @njit(parallel=True, fastmath=True)
 def _split_decision_sample_parallel(X, gradient, hessian, n_bins):
@@ -891,20 +891,20 @@ def _split_decision_feature_parallel(X, gradient, hessian, n_bins):
     Gl = np.zeros((n_features, n_bins), dtype=np.float64)
     Hl = np.zeros((n_features, n_bins), dtype=np.float64)    
     Glc = np.zeros((n_features, n_bins), dtype=np.float64)
-    
-    for i in prange(n_features):
+
+    for i in prange(n_features):   
+        Glj = np.zeros(n_bins, dtype=np.float64)
+        Hlj = np.zeros(n_bins, dtype=np.float64)    
+        Glcj = np.zeros(n_bins, dtype=np.float64)
         for j in range(n_samples):
-            Xc = X[i, j]
-            current_grad = gradient[j]
-            current_hess = hessian[j]
-            k = 0
-            flag = (k <  Xc)
-            while flag:
-                Gl[i, k] += current_grad
-                Hl[i, k] += current_hess
-                Glc[i, k] += 1
-                k += 1
-                flag = (k <  Xc) 
+            idx = X[i, j]
+            Glj[idx] += gradient[j]
+            Hlj[idx] += hessian[j]
+            Glcj[idx] += 1
+        for k in range(n_bins):
+            Gl[i, k] = np.sum(Glj[:k+1])
+            Hl[i, k] = np.sum(Hlj[:k+1])
+            Glc[i, k] = np.sum(Glcj[:k+1])
     
     return Gl, Hl, Glc
 
@@ -1030,6 +1030,13 @@ class PGBMRegressor(BaseEstimator):
         correlation we assume to exist between each subsequent tree in the 
         ensemble.
     
+    monotone_contraints : array, default=None. Array detailing
+        monotone constraints for each feature in the dataset, where 0 represents
+        no constraint, 1 a positive monotone constraint, and -1 a negative
+        monotone constraint. For example, for a dataset with 3 features, this 
+        parameter could be [1, 0, -1] for respectively a positive, none and 
+        negative monotone contraint on feature 1, 2 and 3.
+    
     monotone_iterations : int, default=1. The number of alternative splits that
         will be considered if a monotone constraint is violated by the current
         split proposal. Increase this to improve accuracy at the expense of 
@@ -1059,8 +1066,8 @@ class PGBMRegressor(BaseEstimator):
     def __init__(self, objective='mse', metric='rmse', max_leaves=32, learning_rate=0.1, n_estimators=100,
                  min_split_gain=0.0, min_data_in_leaf=3, bagging_fraction=1, feature_fraction=1, max_bin=256,
                  reg_lambda=1.0, random_state=2147483647, split_parallel='feature',
-                 distribution='normal', checkpoint=False, tree_correlation=None, monotone_iterations=1, 
-                 verbose=2):
+                 distribution='normal', checkpoint=False, tree_correlation=None,  monotone_constraints=None, 
+                 monotone_iterations=1, verbose=2):
         # Set parameters
         self.objective = objective
         self.metric = metric
@@ -1078,11 +1085,12 @@ class PGBMRegressor(BaseEstimator):
         self.distribution = distribution
         self.checkpoint = checkpoint
         self.tree_correlation = tree_correlation
+        self.monotone_constraints = monotone_constraints
         self.monotone_iterations = monotone_iterations
         self.verbose = verbose
         
     def fit(self, X, y, eval_set=None, sample_weight=None, eval_sample_weight=None,
-            early_stopping_rounds=None, monotone_constraints=None):
+            early_stopping_rounds=None):
         # Set estimator type
         self._estimator_type = "regressor"
         # Check that X and y have correct shape and convert to float64
@@ -1117,8 +1125,8 @@ class PGBMRegressor(BaseEstimator):
                   'split_parallel':self.split_parallel}
         if self.tree_correlation is not None: 
             params['tree_correlation'] = self.tree_correlation
-        if monotone_constraints is not None:
-            params['monotone_constraints'] = monotone_constraints
+        if self.monotone_constraints is not None:
+            params['monotone_constraints'] = self.monotone_constraints
 
         # Set objective and metric
         if (self.objective == 'mse'):
