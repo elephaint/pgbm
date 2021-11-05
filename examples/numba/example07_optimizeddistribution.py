@@ -16,7 +16,7 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
-#%% Import packages
+#%% Import packagess
 import numpy as np
 from pgbm_nb import PGBM
 from sklearn.model_selection import train_test_split
@@ -35,7 +35,7 @@ def rmseloss_metric(yhat, y, sample_weight=None):
 #%% Generic Parameters
 # PGBM specific
 params = {'min_split_gain':0,
-      'min_data_in_leaf':3,
+      'min_data_in_leaf':2,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,
@@ -45,13 +45,13 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
-      'lambda':1,
+      'reg_lambda':1,
       'split_parallel':'feature',
       'distribution':'normal'}
 n_forecasts = 1000
 #%% Loop
-# datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
-dataset = 'boston'
+# datasets = ['housing', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
+dataset = 'housing'
 # Get data
 data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, 0)
@@ -75,17 +75,17 @@ params['n_estimators'] = model.best_iteration
 model = PGBM()
 model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
 #% Probabilistic predictions base case
-model.params['distribution'] = 'normal'
-base_case_tree_correlation = model.params['tree_correlation']
+model.distribution = 'normal'
+base_case_tree_correlation = model.tree_correlation
 yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_old = np.mean(model.crps_ensemble(yhat_dist_pgbm, y_test))
 # Optimal case
-model.params['distribution'] = best_distribution
-model.params['tree_correlation'] = best_tree_correlation
+model.distribution = best_distribution
+model.tree_correlation = best_tree_correlation
 yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_new = np.mean(model.crps_ensemble(yhat_dist_pgbm, y_test))  
 # Print scores
 print(f"Base case CRPS {crps_old:.2f}, distribution = normal, tree_correlation = {base_case_tree_correlation}")
-print(f"Optimal CRPS {crps_new:.2f}, distribution = {model.params['distribution']}, tree_correlation = {model.params['tree_correlation']}")
+print(f"Optimal CRPS {crps_new:.2f}, distribution = {model.distribution}, tree_correlation = {model.tree_correlation}")

@@ -1,2 +1,5 @@
-include src\pgbm\parallelsum.cpp
-include src\pgbm\parallelsum_kernel.cu
+include src\pgbm\splitgain_cpu.cpp
+include src\pgbm\splitgain_cuda.cpp
+include src\pgbm\splitgain_kernel.cu
+include src\pgbm_dist\parallelsum.cpp
+include src\pgbm_dist\parallelsum_kernel.cu

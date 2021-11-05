@@ -1,3 +1,12 @@
+## v1.4 ##
+* Pytorch version complete code rewrite improving speed by up to 3x on GPU. 
+* Replaced boston_housing by california housing as key example due to ethical concerns regarding its features (see here: https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html).
+* PyTorch: distributed version now separate of the vanilla version; this improves speed of the vanilla version. (Hopefully temporary solution until TorchScript will support distributed functions).
+* Removed experimental TPU support for now.
+* Parameters are now attributes of the learner instead of part of a dictionary `param`.
+* Renamed the regularization parameter `lambda` to `reg_lambda` to avoid confusion with Python's `lambda` function.
+* Rewrote splitting procedure on all versions, removing bugs observed in hyperparameter tuning.
+
 ## v1.3 ##
 * Added `monotone_constraints` as parameter to initialization of `PGBMRegressor` rather than as part of `fit`.
 * Speed improvements of both Numba and PyTorch version.

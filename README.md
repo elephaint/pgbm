@@ -4,18 +4,18 @@
 [![GitHub license](https://img.shields.io/pypi/l/pgbm)](https://github.com/elephaint/pgbm/blob/main/LICENSE)
 
 _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient boosting framework in Python based on PyTorch/Numba, developed by Airlab in Amsterdam. It provides the following advantages over existing frameworks:
-* Probabilistic regression estimates instead of only point estimates. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_bostonhousing_cpu.py))
-* Auto-differentiation of custom loss functions. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example08_bostonhousing_autodiff.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example10_covidhospitaladmissions.py))
-* Native GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_bostonhousing_gpu.py))
-* Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/))
+* Probabilistic regression estimates instead of only point estimates. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_housing_cpu.py))
+* Auto-differentiation of custom loss functions. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example08_housing_autodiff.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example10_covidhospitaladmissions.py))
+* Native GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_housing_gpu.py))
+* Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/))
 * Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example07_optimizeddistribution.py))
 
 In addition, we support the following features:
 * Feature subsampling by tree
 * Sample subsampling ('bagging') by tree
-* Saving, loading and predicting with a trained model ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example11_bostonhousing_saveandload.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example11_bostonhousing_saveandload.py))
-* Checkpointing (continuing training of a model after saving) ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example12_bostonhousing_checkpointing.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example12_bostonhousing_checkpointing.py))
-* Feature importance by gain and permutation ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example09_bostonhousing_featimportance.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example09_bostonhousing_featimportance.py))
+* Saving, loading and predicting with a trained model ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example11_housing_saveandload.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example11_housing_saveandload.py))
+* Checkpointing (continuing training of a model after saving) ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example12_housing_checkpointing.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example12_housing_checkpointing.py))
+* Feature importance by gain and permutation ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example09_housing_featimportance.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example09_housing_featimportance.py))
 * Monotone constraints ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example15_monotone_constraints.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example13_monotone_constraints.py))
 * Scikit-learn compatible via `PGBMRegressor` class. 
 
@@ -38,10 +38,10 @@ Run `pip install pgbm` from a terminal within a Python (virtual) environment of 
 
 #### Verification ####
 * Download & run an example from the examples folder to verify the installation is correct:
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_bostonhousing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_bostonhousing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example01_bostonhousing_cpu.py) to verify ability to train & predict on CPU with Numba backend.
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example13_boston_dist.py) to verify ability to perform distributed CPU, GPU, multi-CPU and/or multi-GPU training.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_housing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_housing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example01_housing_cpu.py) to verify ability to train & predict on CPU with Numba backend.
+  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example13_housing_dist.py) to verify ability to perform distributed CPU, GPU, multi-CPU and/or multi-GPU training.
 * Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
 * When using the Numba-backend, several functions need to be JIT-compiled. Hence, the first time you train a model using this backend it can take a bit longer.
 * To run the examples some additional packages such as `scikit-learn` or `matplotlib` are required; these should be installed separately via `pip` or  `conda`.

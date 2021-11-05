@@ -18,43 +18,38 @@
 """
 
 #%% Load packages
-from pgbm import PGBM
+from pgbm_nb import PGBM
+import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
-import matplotlib.pyplot as plt
+from sklearn.datasets import fetch_california_housing
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, sample_weight=None):
-    loss = (yhat - y).pow(2).mean()
+    gradient = (yhat - y)
+    hessian = np.ones_like(yhat)
 
-    return loss
+    return gradient, hessian
 
 def rmseloss_metric(yhat, y, sample_weight=None):
-    loss = (yhat - y).pow(2).mean().sqrt()
+    loss = np.sqrt(np.mean(np.square(yhat - y)))
 
     return loss
 #%% Load data
-X, y = load_boston(return_X_y=True)
-#%% Set parameters to use autodifferentiation on the loss function
-params = {'derivatives': 'approx'}
-#%% Train pgbm
+X, y = fetch_california_housing(return_X_y=True)
+#%% Train pgbm and save
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 train_data = (X_train, y_train)
-# Train on set   
-model = PGBM()
-model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
+# Train on set 
+model = PGBM()  
+model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
+model.save('model.pt')
+#%% Load model trained and predict.
+model_new = PGBM()
+model_new.load('model.pt')
 #% Point and probabilistic predictions
-yhat_point_pgbm = model.predict(X_test)
-yhat_dist_pgbm = model.predict_dist(X_test)
-# Scoring. Note: move the outputs back to CPU
-rmse = model.metric(yhat_point_pgbm.cpu(), y_test)
-crps = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()    
+yhat_point = model_new.predict(X_test)
+yhat_dist = model_new.predict_dist(X_test)
+# Scoring
+crps = model_new.crps_ensemble(yhat_dist, y_test).mean()    
 # Print final scores
-print(f'RMSE PGBM: {rmse:.2f}')
 print(f'CRPS PGBM: {crps:.2f}')
-#%% Plot all samples
-plt.plot(y_test, 'o', label='Actual')
-plt.plot(yhat_point_pgbm.cpu(), 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist_pgbm.cpu().max(dim=0).values, 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist_pgbm.cpu().min(dim=0).values, 'k--', label='Min bound PGBM')
-plt.legend()

@@ -210,8 +210,7 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
-      'lambda':1,
-      'tree_correlation':0.0,
+      'reg_lambda':1,
       "device": DEVICE,
       'derivatives':'approx',
       'distribution':'poisson'} 
@@ -250,8 +249,8 @@ for fold, date in enumerate(validation_dates):
     for i, tree_correlation in enumerate(tree_correlations):
         for j, distribution in enumerate(distributions):
             print(f'Fold {fold} / Tree correlation {i} / Distribution {j}')
-            model.params['tree_correlation'] = tree_correlation
-            model.params['distribution'] = distribution
+            model.tree_correlation = torch.tensor(tree_correlation, dtype=torch.float, device=torch_device)
+            model.distribution = distribution
             yhat_dist = model.predict_dist(X_val.values, n_forecasts=n_forecasts)
             yhat_dist = yhat_dist.clamp(0, 1e9)  # clipping to avoid negative predictions of symmetric distributions
             crps = crps_levels(yhat_dist, torch.from_numpy(y_val.values).float().to(torch_device), levels_val)

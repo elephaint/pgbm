@@ -21,7 +21,6 @@ import torch
 import time
 from pgbm import PGBM
 from sklearn.model_selection import train_test_split
-import properscoring as ps
 import pandas as pd
 import numpy as np
 from datasets import get_dataset, get_fold
@@ -40,7 +39,7 @@ def rmseloss_metric(yhat, y, sample_weight=None):
 # PGBM specific
 method = 'pgbm'
 params = {'min_split_gain':0,
-      'min_data_in_leaf':1,
+      'min_data_in_leaf':2,
       'max_leaves':8,
       'max_bin':64,
       'learning_rate':0.1,
@@ -50,16 +49,15 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
-      'lambda':1,
-      'tree_correlation':0.03,
+      'reg_lambda':1,
       'device':'gpu',
       'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 n_forecasts = 1000
 #%% Loop
-datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
-# datasets = ['boston']
+# datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
+datasets = ['msd']
 base_estimators = 2000
 df = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rmse_test','crps_test','validation_time'])
 torchdata = lambda x : torch.from_numpy(x).float()
@@ -98,14 +96,13 @@ for i, dataset in enumerate(datasets):
         model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
         #% Predictions
         print('Prediction...')
-        yhat_point = model.predict(X_test)
-        model.params['tree_correlation'] = np.log10(len(X_train)) / 100
-        yhat_dist = model.predict_dist(X_test, n_forecasts=n_forecasts)
+        yhat_point = model.predict(X_test, parallel=False)
+        yhat_dist = model.predict_dist(X_test, n_forecasts=n_forecasts, parallel=False)
         # Scoring
         rmse = rmseloss_metric(yhat_point.cpu(), y_test).numpy()
-        crps = ps.crps_ensemble(y_test, yhat_dist.cpu().T).mean()
+        crps = model.crps_ensemble(yhat_dist, y_test).mean().cpu().numpy()
         # Save data
         df = df.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}, ignore_index=True)
 #%% Save
-filename = f"{method}_{params['device']}.csv"
+filename = f"{method}_{params['device']}_new.csv"
 df.to_csv(f'experiments/01_uci_benchmark/{filename}')

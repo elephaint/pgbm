@@ -24,18 +24,18 @@ from sklearn.model_selection import train_test_split
 import lightgbm as lgb
 from datasets import get_dataset, get_fold
 #%% Objective for pgbm
-def mseloss_objective(yhat, y, sample_weight=None):
+def mseloss_objective(yhat, y, sample_weight):
     gradient = (yhat - y)
     hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
-def rmseloss_metric(yhat, y, sample_weight=None):
+def rmseloss_metric(yhat, y, sample_weight):
     loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
 #%% Load data
-#datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
+#datasets = ['housing', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
 dataset = 'msd'
 data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, random_state=0)
@@ -53,7 +53,7 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':0.1,
       'seed':1,
-      'lambda':1,
+      'reg_lambda':1,
       'device':'gpu',
       'gpu_device_id':0,
       'derivatives':'exact',

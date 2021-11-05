@@ -22,6 +22,7 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 import requests, zipfile, io
 import numpy as np
+from pathlib import Path
 #%% Load data
 def get_dataset(dataset):
     location = 'datasets/'
@@ -29,13 +30,20 @@ def get_dataset(dataset):
                 'concrete': lambda: pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/Concrete_Data.xls'),
                 'energy': lambda: pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/00242/ENB2012_data.xlsx').iloc[:, :-2],
                 'kin8nm': lambda: pd.read_csv('https://www.openml.org/data/get_csv/3626/dataset_2175_kin8nm.arff'),
-                'msd': lambda: pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00203/YearPredictionMSD.txt.zip', header=None).iloc[:, ::-1],
                 'protein': lambda: pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00265/CASP.csv')[["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "RMSD"]],
                 'wine': lambda: pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv', delimiter=";"),
                 'yacht': lambda: pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00243/yacht_hydrodynamics.data', header=None, delim_whitespace=True)}
     if dataset == 'higgs':
-        # Pre-download Higgs from https://archive.ics.uci.edu/ml/datasets/HIGGS and extract HIGGS.csv to pgbm/datasets/
-        data = pd.read_csv(f'{location}HIGGS.csv', header=None)                
+        # Pre-download Higgs from https://archive.ics.uci.edu/ml/datasets/HIGGS, extract HIGGS.csv to pgbm/datasets/, load in Python and save as higgs.feather
+        data = pd.read_feather(f'{location}higgs.feather')              
+    elif dataset == 'msd':
+        if Path(f'{location}msd.feather').is_file():
+            data = pd.read_feather(f'{location}msd.feather')
+        else:
+            print('Downloading MSD dataset...')
+            data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00203/YearPredictionMSD.txt.zip', header=None).iloc[:, ::-1]
+            data.columns = data.columns.astype('str')
+            data.to_feather(f'{location}msd.feather')
     elif dataset == 'boston':
         X, y = datasets[dataset]()
         data = pd.DataFrame(np.concatenate((X, y[:, None]), axis=1))

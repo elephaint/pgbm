@@ -144,3 +144,4 @@ notes/
 *.parquet
 /docs
 *.csv.gz
+/src/pgbm_jax

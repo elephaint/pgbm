@@ -16,13 +16,14 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
-
-#%% Load packages
+#%% Import packages
+import time
 from pgbm_nb import PGBM
-import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
+import numpy as np
 import matplotlib.pyplot as plt
+from ngboost import NGBRegressor
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
@@ -35,7 +36,7 @@ def rmseloss_metric(yhat, y, sample_weight=None):
 
     return loss
 #%% Load data
-X, y = load_boston(return_X_y=True)
+X, y = fetch_california_housing(return_X_y=True)
 #%% Parameters
 params = {'min_split_gain':0,
       'min_data_in_leaf':2,
@@ -48,16 +49,17 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
-      'lambda':1,
+      'reg_lambda':1,
       'split_parallel':'feature',
       'distribution':'normal'}
-
-n_forecasts = 1000
+#%% Train pgbm vs NGBoost
 n_splits = 2
+n_forecasts = 1000
 base_estimators = 2000
-#%% Validation loop
-rmse, crps = np.zeros(n_splits), np.zeros(n_splits)
+rmse, crps = np.zeros((n_splits, 2)), np.zeros((n_splits, 2))
+#%% Loop
 for i in range(n_splits):
+    start = time.perf_counter()
     print(f'Fold {i+1}/{n_splits}')
     # Split for model validation
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=i)
@@ -69,8 +71,11 @@ for i in range(n_splits):
     # Train to retrieve best iteration
     print('PGBM Validating on partial dataset...')
     params['n_estimators'] = base_estimators
+    start = time.perf_counter()    
     model = PGBM()
     model.train(train_val_data, objective=mseloss_objective, metric=rmseloss_metric, valid_set=valid_data, params=params)
+    end = time.perf_counter()
+    print(f'Fold time: {end - start:.2f}s')
     # Set iterations to best iteration
     params['n_estimators'] = model.best_iteration + 1
     # Retrain on full set   
@@ -79,21 +84,42 @@ for i in range(n_splits):
     model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
     #% Predictions
     print('PGBM Prediction...')
-    yhat_point = model.predict(X_test)
-    yhat_dist = model.predict_dist(X_test, n_forecasts=n_forecasts)
+    yhat_point_pgbm = model.predict(X_test)
+    yhat_dist_pgbm  = model.predict_dist(X_test, n_forecasts=n_forecasts)
     # Scoring
-    rmse[i] = model.metric(yhat_point, y_test)
-    crps[i] = model.crps_ensemble(yhat_dist, y_test).mean()           
+    rmse[i, 0] = model.metric(yhat_point_pgbm, y_test)
+    crps[i, 0] = model.crps_ensemble(yhat_dist_pgbm, y_test).mean()
+    # NGB
+    print('NGB Validating on partial dataset...')
+    start = time.perf_counter()
+    ngb = NGBRegressor(n_estimators=base_estimators)
+    ngb.fit(X_train_val, y_train_val, X_val, y_val, early_stopping_rounds=2000)
+    end = time.perf_counter()
+    print(f'Fold time: {end - start:.2f}s')
+    best_iter = ngb.best_val_loss_itr + 1
+    ngb = NGBRegressor(n_estimators=best_iter)    
+    print('NGB Training on full dataset...')
+    ngb.fit(X_train, y_train)
+    print('NGB Prediction...')    
+    yhat_point_ngb = ngb.predict(X_test)
+    ngb_dist = ngb.pred_dist(X_test)
+    yhat_dist_ngb = ngb_dist.sample(n_forecasts)
+    # Scoring NGB
+    rmse[i, 1] = model.metric(yhat_point_ngb, y_test)
+    crps[i, 1] = model.crps_ensemble(yhat_dist_ngb, y_test).mean()        
     # Print scores current fold
-    print(f'RMSE Fold {i+1}, {rmse[i]:.2f}')
-    print(f'CRPS Fold {i+1}, {crps[i]:.2f}')
+    print(f'RMSE Fold {i+1}, PGBM: {rmse[i, 0]:.2f}, NGB: {rmse[i, 1]:.2f}')
+    print(f'CRPS Fold {i+1}, PGBM: {crps[i, 0]:.2f}, NGB: {crps[i, 1]:.2f}')
       
 # Print final scores
-print(f'RMSE {rmse.mean():.2f}+-{rmse.std():.2f}')
-print(f'CRPS {crps.mean():.2f}+-{crps.std():.2f}')
-#%% Plot all samples
+print(f'RMSE PGBM: {rmse[:, 0].mean():.2f}+-{rmse[:, 0].std():.2f}, NGB: {rmse[:, 1].mean():.2f}+-{rmse[:, 1].std():.2f}')
+print(f'CRPS PGBM: {crps[:, 0].mean():.2f}+-{crps[:, 0].std():.2f}, NGB: {crps[:, 1].mean():.2f}+-{crps[:, 1].std():.2f}')
+#%% Plot all sample
 plt.plot(y_test, 'o', label='Actual')
-plt.plot(yhat_point, 'ko', label='Point prediction PGBM')
-plt.plot(yhat_dist.max(axis=0), 'k--', label='Max bound PGBM')
-plt.plot(yhat_dist.min(axis=0), 'k--', label='Min bound PGBM')
+plt.plot(yhat_point_pgbm, 'ko', label='Point prediction PGBM')
+plt.plot(yhat_point_ngb, 'ro', label='Point prediction NGBoost')
+plt.plot(yhat_dist_pgbm.max(axis=0), 'k--', label='Max bound PGBM')
+plt.plot(yhat_dist_pgbm.min(axis=0), 'k--', label='Min bound PGBM')
+plt.plot(yhat_dist_ngb.max(axis=0), 'r--', label='Max bound NGBoost')
+plt.plot(yhat_dist_ngb.min(axis=0), 'r--', label='Min bound NGBoost')
 plt.legend()

@@ -47,15 +47,15 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
-      'lambda':1,
+      'reg_lambda':1,
       'device':'gpu',
       'gpu_device_id':0,
       'derivatives':'exact',
       'distribution':'normal'}
 n_forecasts = 1000
 #%% Loop
-# datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
-dataset = 'boston'
+# datasets = ['housing', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht']
+dataset = 'housing'
 # Get data
 data = get_dataset(dataset)
 X_train, X_test, y_train, y_test = get_fold(dataset, data, 0)
@@ -79,17 +79,17 @@ params['n_estimators'] = model.best_iteration
 model = PGBM()
 model.train(train_data, objective=objective, metric=rmseloss_metric, params=params)
 #% Probabilistic predictions base case
-model.params['distribution'] = 'normal'
-base_case_tree_correlation = model.params['tree_correlation']
+model.distribution = 'normal'
+base_case_tree_correlation = model.tree_correlation
 yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_old = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()
 # Optimal case
-model.params['distribution'] = best_distribution
-model.params['tree_correlation'] = best_tree_correlation
+model.distribution = best_distribution
+model.tree_correlation = best_tree_correlation
 yhat_dist_pgbm = model.predict_dist(X_test, n_forecasts=n_forecasts)
 # Scoring
 crps_new = model.crps_ensemble(yhat_dist_pgbm.cpu(), y_test).mean()  
 # Print scores
 print(f"Base case CRPS {crps_old:.2f}, distribution = normal, tree_correlation = {base_case_tree_correlation}")
-print(f"Optimal CRPS {crps_new:.2f}, distribution = {model.params['distribution']}, tree_correlation = {model.params['tree_correlation']}")
+print(f"Optimal CRPS {crps_new:.2f}, distribution = {model.distribution}, tree_correlation = {model.tree_correlation}")

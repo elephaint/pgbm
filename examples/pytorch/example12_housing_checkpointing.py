@@ -18,34 +18,37 @@
 """
 
 #%% Load packages
-from pgbm_nb import PGBM
-import numpy as np
+import torch
+from pgbm import PGBM
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
-    hessian = np.ones_like(yhat)
+    hessian = torch.ones_like(yhat)
 
     return gradient, hessian
 
 def rmseloss_metric(yhat, y, sample_weight=None):
-    loss = np.sqrt(np.mean(np.square(yhat - y)))
+    loss = (yhat - y).pow(2).mean().sqrt()
 
     return loss
 #%% Load data
-X, y = load_boston(return_X_y=True)
+X, y = fetch_california_housing(return_X_y=True)
+params = {'checkpoint': True}
 #%% Train pgbm and save
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 train_data = (X_train, y_train)
 # Train on set 
+params['n_estimators'] = 50
 model = PGBM()  
-model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)
-model.save('model.pt')
-#%% Load model trained and predict.
+model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
+#%% Load checkpoint and continue training
 model_new = PGBM()
-model_new.load('model.pt')
+model_new.load('checkpoint')
+params['checkpoint'] = False
+model_new.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)
 yhat_dist = model_new.predict_dist(X_test)

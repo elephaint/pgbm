@@ -21,7 +21,7 @@
 from pgbm_nb import PGBM
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
 import matplotlib.pyplot as plt
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, sample_weight=None):
@@ -35,7 +35,7 @@ def rmseloss_metric(yhat, y, sample_weight=None):
 
     return loss
 #%% Load data
-X, y = load_boston(return_X_y=True)
+X, y = fetch_california_housing(return_X_y=True)
 #%% Train pgbm
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)

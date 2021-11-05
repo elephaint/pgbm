@@ -21,7 +21,7 @@ import torch
 import time
 from pgbm import PGBM
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
 import numpy as np
 import matplotlib.pyplot as plt
 import properscoring as ps
@@ -38,7 +38,7 @@ def rmseloss_metric(yhat, y, sample_weight=None):
 
     return loss
 #%% Load data
-X, y = load_boston(return_X_y=True)
+X, y = fetch_california_housing(return_X_y=True)
 #%% Parameters
 params = {'min_split_gain':0,
       'min_data_in_leaf':2,
@@ -51,8 +51,8 @@ params = {'min_split_gain':0,
       'feature_fraction':1,
       'bagging_fraction':1,
       'seed':1,
-      'lambda':1,
-      'device':'cpu',
+      'reg_lambda':1,
+      'device':'gpu',
       'derivatives':'exact',
       'distribution':'normal'}
 #%% Train pgbm vs NGBoost

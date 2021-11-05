@@ -18,23 +18,23 @@
 """
 
 #%% Load packages
-import torch
-from pgbm import PGBM
+from pgbm_nb import PGBM
+import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
 #%% Objective for pgbm
 def mseloss_objective(yhat, y, sample_weight=None):
     gradient = (yhat - y)
-    hessian = torch.ones_like(yhat)
+    hessian = np.ones_like(yhat)
 
     return gradient, hessian
 
 def rmseloss_metric(yhat, y, sample_weight=None):
-    loss = (yhat - y).pow(2).mean().sqrt()
+    loss = np.sqrt(np.mean(np.square(yhat - y)))
 
     return loss
 #%% Load data
-X, y = load_boston(return_X_y=True)
+X, y = fetch_california_housing(return_X_y=True)
 params = {'checkpoint': True}
 #%% Train pgbm and save
 # Split data
@@ -47,7 +47,6 @@ model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, par
 #%% Load checkpoint and continue training
 model_new = PGBM()
 model_new.load('checkpoint')
-params['checkpoint'] = False
 model_new.train(train_data, objective=mseloss_objective, metric=rmseloss_metric, params=params)
 #% Point and probabilistic predictions
 yhat_point = model_new.predict(X_test)
