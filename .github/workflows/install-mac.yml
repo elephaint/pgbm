@@ -5,48 +5,31 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python 3.8
+      - name: Set up Python 3.7
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
-      - run: pip install pgbm
-      - run: pip install scikit-learn matplotlib
-      - run: pip install torch torchvision torchaudio
-      - run: python examples/pytorch/example01_bostonhousing_cpu.py
+          python-version: 3.7
+      - run: pip install pgbm[torch-cpu]
+      - run: python examples/pytorch/example01_housing_cpu.py
   install-cpu-numba:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Set up Python 3.8
+      - name: Set up Python 3.7
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
-      - run: pip install pgbm
-      - run: pip install scikit-learn matplotlib
-      - run: pip install numba
-      - run: python examples/numba/example01_bostonhousing_cpu.py
+          python-version: 3.7
+      - run: pip install pgbm[numba]
+      - run: python examples/numba/example01_housing_cpu.py
   # install-gpu-torch:
   #   runs-on: [self-hosted,gpu]
   #   steps:
   #     - uses: actions/checkout@v2
-  #     - name: Set up Python 3.8
+  #     - name: Set up Python 3.7
   #       uses: actions/setup-python@v2
   #       with:
-  #         python-version: 3.8
-  #     - run: pip install pgbm
-  #     - run: pip install scikit-learn matplotlib
-  #     - run: pip install torch torchvision torchaudio
-  #     - run: echo "???"
-  # install-cpu-numba:
-  #   runs-on: [self-hosted,gpu]
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: Set up Python 3.8
-  #       uses: actions/setup-python@v2
-  #       with:
-  #         python-version: 3.8
-  #     - run: pip install pgbm
-  #     - run: pip install scikit-learn matplotlib
-  #     - run: pip install numba
+  #         python-version: 3.7
+  #     - run: pip install pgbm[torch-gpu] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html
+  #     - run: python examples/pytorch/example02_housing_gpu.py
   #     - run: python examples/numba/example01_bostonhousing_cpu.py
   #     - run: echo "???"
