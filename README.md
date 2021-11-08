@@ -25,8 +25,8 @@ Below a simple example using our sklearn wrapper:
 ```
 from pgbm import PGBMRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_boston
-X, y = load_boston(return_X_y=True)
+from sklearn.datasets import fetch_california_housing
+X, y = fetch_california_housing(return_X_y=True)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 model = PGBMRegressor().fit(X_train, y_train)  
 yhat_point = model.predict(X_test)
@@ -34,33 +34,37 @@ yhat_dist = model.predict_dist(X_test)
 ```
 
 ### Installation ###
-Run `pip install pgbm` from a terminal within a Python (virtual) environment of your choice.
-
-#### Verification ####
-* Download & run an example from the examples folder to verify the installation is correct:
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_housing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_housing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example01_housing_cpu.py) to verify ability to train & predict on CPU with Numba backend.
-  * Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example13_housing_dist.py) to verify ability to perform distributed CPU, GPU, multi-CPU and/or multi-GPU training.
-* Note that when training on the GPU, the custom CUDA kernel will be JIT-compiled when initializing a model. Hence, the first time you train a model on the GPU it can take a bit longer, as PGBM needs to compile the CUDA kernel. 
-* When using the Numba-backend, several functions need to be JIT-compiled. Hence, the first time you train a model using this backend it can take a bit longer.
-* To run the examples some additional packages such as `scikit-learn` or `matplotlib` are required; these should be installed separately via `pip` or  `conda`.
 
 #### Dependencies ####
-The core package has the following dependencies which should be installed separately (installing the core package via `pip` will not automatically install these dependencies).
+We offer PGBM using two backends, PyTorch (`import pgbm`) and Numba (`import pgbm_nb`).
 
 ##### Torch backend #####
-* CUDA Toolkit matching your PyTorch distribution (https://developer.nvidia.com/cuda-toolkit)
-* PyTorch >= 1.8.0, with CUDA 10.2 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
-* PGBM uses a custom CUDA kernel which needs to be compiled, which may require installing a suitable compiler. Installing PyTorch and the full CUDA Toolkit should be sufficient, but [open an issue](https://github.com/elephaint/pgbm/issues) if you find it still not working even after installing these dependencies. 
-* The CUDA device should have CUDA compute ability 6.x or higher.
-* Scikit-learn in case you want to use our sklearn wrapper `PGBMRegressor`. (https://scikit-learn.org/stable/)
+* `torch>=1.8.0`, with CUDA Toolkit >= 10.2 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
+* `ninja>=1.10.2.2` for compiling the custom c++ extensions.
+* GPU training: the CUDA device should have CUDA compute ability 6.x or higher.
 
 ##### Numba backend #####
-* Numba >= 0.53.1 (https://numba.readthedocs.io/en/stable/user/installing.html). 
-* Scikit-learn in case you want to use our sklearn wrapper `PGBMRegressor`. (https://scikit-learn.org/stable/)
-
+* `numba>=0.53.1` (https://numba.readthedocs.io/en/stable/user/installing.html). 
 The Numba backend does not support differentiable loss functions and GPU training is also not supported using this backend.
+
+#### Installation via `pip` ####
+We recommend to install PGBM using `pip`.
+
+* __without__ dependencies: `pip install pgbm`. Use this if you have already installed the above dependencies separately.
+* __with__ dependencies:
+  * Torch CPU+GPU: `pip install pgbm[torch-gpu] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html`
+  * Torch CPU-only: `pip install pgbm[torch-cpu]`
+  * Numba: `pip install pgbm[numba]`
+  * All versions (Torch CPU+GPU and Numba): `pip install pgbm[all] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html`
+
+#### Verification ####
+Both backends use JIT-compilation so you incur additional compilation time the first time you use PGBM.
+
+To verify, download & run an example from the examples folder to verify the installation is correct:
+* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_housing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
+* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_housing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
+* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example01_housing_cpu.py) to verify ability to train & predict on CPU with Numba backend.
+* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example13_housing_dist.py) to verify ability to perform distributed CPU, GPU, multi-CPU and/or multi-GPU training.
 
 ### Support ###
 See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.

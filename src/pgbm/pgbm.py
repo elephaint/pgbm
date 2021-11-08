@@ -1035,7 +1035,6 @@ def _create_tree(X: torch.Tensor, gradient: torch.Tensor, hessian: torch.Tensor,
     node_constraints[:, 1] = -np.inf
     node_constraints[:, 2] = np.inf
     # Choose random subset of features
-    n_features = X.shape[0]
     Xe = X[sample_features]
     # Set other initial variables
     n_samples = samples.sum()
