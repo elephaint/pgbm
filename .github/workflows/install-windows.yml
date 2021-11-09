@@ -10,7 +10,6 @@ jobs:
         with:
           python-version: 3.7
       - uses: ilammy/msvc-dev-cmd@v1
-      - run: pip install cmake
       - run: pip install pgbm[torch-cpu]
       - run: python examples/pytorch/example01_housing_cpu.py
   install-cpu-numba:
