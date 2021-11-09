@@ -12,7 +12,7 @@ jobs:
       - run: pip install pgbm[torch-cpu]
       - run: python examples/pytorch/example01_housing_cpu.py
   install-cpu-numba:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python 3.7
