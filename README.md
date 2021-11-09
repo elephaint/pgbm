@@ -17,7 +17,7 @@ In addition, we support the following features:
 * Checkpointing (continuing training of a model after saving) ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example12_housing_checkpointing.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example12_housing_checkpointing.py))
 * Feature importance by gain and permutation ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example09_housing_featimportance.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example09_housing_featimportance.py))
 * Monotone constraints ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example15_monotone_constraints.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example13_monotone_constraints.py))
-* Scikit-learn compatible via `PGBMRegressor` class. 
+* Scikit-learn compatible via [`PGBMRegressor`](https://github.com/elephaint/pgbm/blob/f96e8290f4eed482dc3fac7bf17447fe1a2f5b1c/src/pgbm/pgbm.py#L1212) class. 
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
@@ -39,24 +39,24 @@ yhat_dist = model.predict_dist(X_test)
 We offer PGBM using two backends, PyTorch (`import pgbm`) and Numba (`import pgbm_nb`).
 
 ##### Torch backend #####
-* `torch>=1.8.0`, with CUDA Toolkit >= 10.2 for GPU acceleration (https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
-* `ninja>=1.10.2.2` for compiling the custom c++ extensions.
-* GPU training: the CUDA device should have CUDA compute ability 6.x or higher.
+* [`torch>=1.8.0`, with CUDA Toolkit >= 10.2 for GPU acceleration](https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
+* [`ninja>=1.10.2.2`](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) for compiling the custom c++ extensions.
+* GPU training: the CUDA device should have [CUDA compute ability 2.x or higher](https://en.wikipedia.org/wiki/CUDA).
+* Windows users: you may need to install [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/?q=build+tools) and make sure you add compiler `cl` to your `PATH` environment variable (see [here](https://stackoverflow.com/a/65812244)). Verify that Windows can find `cl` by executing `where cl` in a Windows command line terminal.
 
 ##### Numba backend #####
-* `numba>=0.53.1` (https://numba.readthedocs.io/en/stable/user/installing.html). 
-The Numba backend does not support differentiable loss functions and GPU training is also not supported using this backend.
+[`numba>=0.53.1`](https://numba.readthedocs.io/en/stable/user/installing.html). The Numba backend does not support differentiable loss functions and GPU training is also not supported.
 
 #### Installation via `pip` ####
 We recommend to install PGBM using `pip`.
 
 * __without__ dependencies: `pip install pgbm`. Use this if you have already installed the above dependencies separately.
-* __with__ dependencies:
+* __with__ dependencies (except for the Visual Studio Build Tools for Windows users):
   * Torch CPU+GPU: `pip install pgbm[torch-gpu] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html`
   * Torch CPU-only: `pip install pgbm[torch-cpu]`
   * Numba: `pip install pgbm[numba]`
   * All versions (Torch CPU+GPU and Numba): `pip install pgbm[all] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html`
-
+ 
 #### Verification ####
 Both backends use JIT-compilation so you incur additional compilation time the first time you use PGBM.
 
