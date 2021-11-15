@@ -1,6 +1,6 @@
 # Examples #
 
-We provide an extensive [set of examples on our Github page.](https://github.com/elephaint/pgbm/tree/main/examples). An overview is given below.
+We provide an extensive [set of examples on our Github page](https://github.com/elephaint/pgbm/tree/main/examples). An overview is given below.
 
 ## Torch backend ##
 
@@ -36,7 +36,7 @@ We provide an extensive [set of examples on our Github page.](https://github.com
 * [Example 13](https://github.com/elephaint/pgbm/blob/main/examples/numba/example15_monotone_constraints.py): How to use monotone constraints to improve model performance.
 
 ## Torch-distributed backend ##
-* [Example 13]:(https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example13_housing_dist.py) How to train the housing dataset using our distributed backend.
-* [Example 14]:(https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example14_higgs_dist.py) How to train the Higgs dataset using our distributed backend.
+* [Example 13](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example13_housing_dist.py): How to train the housing dataset using our distributed backend.
+* [Example 14](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example14_higgs_dist.py): How to train the Higgs dataset using our distributed backend.
 
 
