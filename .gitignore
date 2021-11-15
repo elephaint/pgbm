@@ -132,7 +132,6 @@ dmypy.json
 **/_old
 /paper/datasets/m5
 *.xls
-*.txt
 *.xlsx
 notes/
 *.csv
@@ -144,3 +143,4 @@ notes/
 *.parquet
 *.csv.gz
 /src/pgbm_jax
+/paper/datasets/naval.txt
