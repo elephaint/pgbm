@@ -12,7 +12,7 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. 
 
-For more details, [read the docs]() or [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
+For more details, [read the docs](https://pgbm.readthedocs.io/en/latest/index.html) or [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 Below a simple example using our sklearn wrapper:
 ```
@@ -28,12 +28,12 @@ yhat_dist = model.predict_dist(X_test)
 
 ### Installation ###
 
-See [Installation]() section in our [docs]().
+See [Installation](https://pgbm.readthedocs.io/en/latest/installation.html) section in our [docs](https://pgbm.readthedocs.io/en/latest/index.html).
 
 ### Support ###
 In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
 
-* Read the docs for an overview of [hyperparameters]() and a [function reference]().
+* Read the docs for an overview of [hyperparameters](https://pgbm.readthedocs.io/en/latest/parameters.html) and a [function reference](https://pgbm.readthedocs.io/en/latest/function_reference.html).
 * See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples. 
 
 In case further support is required, [open an issue](https://github.com/elephaint/pgbm/issues).
