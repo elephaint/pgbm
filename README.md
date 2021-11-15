@@ -10,16 +10,9 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 * Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/))
 * Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example07_optimizeddistribution.py))
 
-In addition, we support the following features:
-* Feature subsampling by tree
-* Sample subsampling ('bagging') by tree
-* Saving, loading and predicting with a trained model ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example11_housing_saveandload.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example11_housing_saveandload.py))
-* Checkpointing (continuing training of a model after saving) ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example12_housing_checkpointing.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example12_housing_checkpointing.py))
-* Feature importance by gain and permutation ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example09_housing_featimportance.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example09_housing_featimportance.py))
-* Monotone constraints ([example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example15_monotone_constraints.py), [example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example13_monotone_constraints.py))
-* Scikit-learn compatible via [`PGBMRegressor`](https://github.com/elephaint/pgbm/blob/f96e8290f4eed482dc3fac7bf17447fe1a2f5b1c/src/pgbm/pgbm.py#L1212) class. 
+It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. 
 
-It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. For more details, read [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
+For more details, [read the docs]() or [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 Below a simple example using our sklearn wrapper:
 ```
@@ -35,39 +28,13 @@ yhat_dist = model.predict_dist(X_test)
 
 ### Installation ###
 
-#### Dependencies ####
-We offer PGBM using two backends, PyTorch (`import pgbm`) and Numba (`import pgbm_nb`).
-
-##### Torch backend #####
-* [`torch>=1.8.0`, with CUDA Toolkit >= 10.2 for GPU acceleration](https://pytorch.org/get-started/locally/). Verify that PyTorch can find a cuda device on your machine by checking whether `torch.cuda.is_available()` returns `True` after installing PyTorch.
-* [`ninja>=1.10.2.2`](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) for compiling the custom c++ extensions.
-* GPU training: the CUDA device should have [CUDA compute ability 2.x or higher](https://en.wikipedia.org/wiki/CUDA).
-* Windows users: you may need to install [Build Tools for Visual Studio](https://visualstudio.microsoft.com/downloads/?q=build+tools) and make sure you add compiler `cl` to your `PATH` environment variable (see [here](https://stackoverflow.com/a/65812244)). Verify that Windows can find `cl` by executing `where cl` in a Windows command line terminal.
-
-##### Numba backend #####
-[`numba>=0.53.1`](https://numba.readthedocs.io/en/stable/user/installing.html). The Numba backend does not support differentiable loss functions and GPU training is also not supported.
-
-#### Installation via `pip` ####
-We recommend to install PGBM using `pip`.
-
-* __without__ dependencies: `pip install pgbm`. Use this if you have already installed the above dependencies separately.
-* __with__ dependencies (except for the Visual Studio Build Tools for Windows users):
-  * Torch CPU+GPU: `pip install pgbm[torch-gpu] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html`
-  * Torch CPU-only: `pip install pgbm[torch-cpu]`
-  * Numba: `pip install pgbm[numba]`
-  * All versions (Torch CPU+GPU and Numba): `pip install pgbm[all] --find-links https://download.pytorch.org/whl/cu102/torch_stable.html`
- 
-#### Verification ####
-Both backends use JIT-compilation so you incur additional compilation time the first time you use PGBM.
-
-To verify, download & run an example from the examples folder to verify the installation is correct:
-* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example01_housing_cpu.py) to verify ability to train & predict on CPU with Torch backend.
-* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch/example02_housing_gpu.py) to verify ability to train & predict on GPU with Torch backend.
-* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/numba/example01_housing_cpu.py) to verify ability to train & predict on CPU with Numba backend.
-* Run [this example](https://github.com/elephaint/pgbm/blob/main/examples/pytorch_dist/example13_housing_dist.py) to verify ability to perform distributed CPU, GPU, multi-CPU and/or multi-GPU training.
+See [Installation]() section in our [docs]().
 
 ### Support ###
-See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples, an overview of hyperparameters and a function reference. In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
+In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
+
+* Read the docs for an overview of [hyperparameters]() and a [function reference]().
+* See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples. 
 
 In case further support is required, [open an issue](https://github.com/elephaint/pgbm/issues).
 

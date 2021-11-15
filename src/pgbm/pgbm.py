@@ -1,3 +1,4 @@
+""""""
 """
    Copyright (c) 2021 Olivier Sprangers as part of Airlab Amsterdam
 
@@ -49,6 +50,20 @@ else:
         verbose=True)      
 #%% Probabilistic Gradient Boosting Machines
 class PGBM(object):
+    """ Probabilistic Gradient Boosting Machines (PGBM) (Python class)
+	
+	PGBM fits a Probabilistic Gradient Boosting Machine regression model and returns point and probabilistic predictions. 
+	
+	This class uses Torch as backend.
+
+	Example: 
+		
+        .. code-block:: python
+        
+            from pgbm import PGBM
+            model = PGBM()	
+
+    """
     def __init__(self):
         super(PGBM, self).__init__()
         self.cwd = Path().cwd()
@@ -146,30 +161,56 @@ class PGBM(object):
         return array.to(self.torch_device)
     
     def train(self, train_set, objective, metric, params=None, valid_set=None, sample_weight=None, eval_sample_weight=None):
-        """
-        Train a PGBM model.
-        
-        Example::
-            >> train_set = (X_train, y_train)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-        
-        Args:
-            train_set (tuple of ([n_trainig_samples x n_features], [n_training_samples])): sample set (X, y) on which to train the PGBM model, 
-                where X contains the features of the samples and y is the ground truth.
-            objective (function): The objective function is the loss function that will be optimized during the gradient boosting process.
-                The function should consume a torch vector of predictions yhat and ground truth values y and output the gradient and 
-                hessian with respect to yhat of the loss function. For more complicated loss functions, it is possible to add a 
-                levels variable, but this can be set to None in case it is not required.
-            metric (function): The metric function is the function that generates the error metric. The evaluation 
-                metric should consume a torch vector of predictions yhat and ground truth values y, and output a scalar loss. For 
-                more complicated evaluation metrics, it is possible to add a levels variable, but this can be set to None in case 
-                it is not required.
-            params (dictionary): Dictionary containing the learning parameters of a PGBM model. 
-            valid_set (tuple of ([n_validation_samples x n_features], [n_validation_samples])): sample set (X, y) on which to validate 
-                the PGBM model, where X contains the features of the samples and y is the ground truth.
-            sample_weight (vector of shape [n_training_samples] or dictionary of arrays): sample weights for the training data.
-            eval_sample_weight (vector of shape [n_training_samples] or dictionary of arrays): sample weights for the validation data.
+        """Train a PGBM model.
+		        
+		:param train_set: sample set (X, y) of size ([n_training_samples x n_features], [n_training_samples])) on which to train the PGBM model, where X contains the features of the samples and y is the ground truth.
+		:type train_set: tuple
+		:param objective: The objective function is the loss function that will be optimized during the gradient boosting process. The function should consume a numpy vector of predictions yhat and ground truth values y and output the gradient and hessian with respect to yhat of the loss function. 
+		:type objective: function
+		:param metric: The metric function is the function that generates the error metric. The evaluation metric should consume a numpy vector of predictions yhat and ground truth values y, and output a scalar loss. 
+		:type metric: function
+		:param params: Dictionary containing the learning parameters of a PGBM model, defaults to None.
+		:type params: dictionary, optional
+		:param valid_set: sample set (X, y) of size ([n_validation_samples x n_features], [n_validation_samples])) on which to validate the PGBM model, where X contains the features of the samples and y is the ground truth, defaults to None.
+		:type valid_set: tuple, optional
+		:param sample_weight: sample weights for the training data, defaults to None.
+		:type sample_weight: torch.Tensor, optional
+		:param eval_sample_weight: sample weights for the validation data, defaults to None.
+		:type eval_sample_weight: torch.Tensor, optional
+		
+		:return: `self`
+		:rtype: PGBM object
+		
+		Example:
+		
+		.. code-block:: python
+		
+			# Load packages
+			from pgbm import PGBM
+			import numpy as np
+			from sklearn.model_selection import train_test_split
+			from sklearn.datasets import fetch_california_housing
+			#%% Objective for pgbm
+			def mseloss_objective(yhat, y, sample_weight=None):
+				gradient = (yhat - y)
+				hessian = np.ones_like(yhat)
+
+				return gradient, hessian
+
+			def rmseloss_metric(yhat, y, sample_weight=None):
+				loss = torch.sqrt(torch.mean(torch.square(yhat - y)))
+
+				return loss
+			#%% Load data
+			X, y = fetch_california_housing(return_X_y=True)
+			#%% Train pgbm
+			# Split data
+			X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+			train_data = (X_train, y_train)
+			# Train on set 
+			model = PGBM()  
+			model.train(train_data, objective=mseloss_objective, metric=rmseloss_metric)	
+			
         """
         # Create parameters
         self.n_samples = train_set[0].shape[0]
@@ -300,21 +341,22 @@ class PGBM(object):
         self.leaves_var             = self.leaves_var[:self.best_iteration]
                        
     def predict(self, X, parallel=True):
-        """
-        Generate point estimates/forecasts for a given sample set X
+        """Generate point estimates/forecasts for a given sample set X.
         
-        Example::
-            >> train_set = (X_train, y_train)
-            >> test_set = (X_test, y_test)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-            >> yhat_test = model.predict(X_test)
+		:param X: sample set of size [n_samples x n_features] for which to create the estimates/forecasts.
+		:type X: torch.Tensor
+		:param parallel: compute predictions for all trees in parallel (`True`) or serial (`False`). Use `False` when experiencing out-of-memory errors.
+		:type parallel: boolean, optional
+		
+		:return: predictions of size [n_samples]
+		:rtype: torch.Tensor
+		
+		Example:
+		
+		.. code-block:: python
+			
+			yhat_test = model.predict(X_test)
         
-        Args:
-            X (array of [n_samples x n_features]): sample set for which to create the estimates/forecasts.
-            parallel (boolean): whether to generate the estimates in parallel or using a serial computation.
-                Use serial if you experience RAM or GPU out-of-memory errors when using this function. Otherwise,
-                parallel is recommended as it is much faster.
         """
         X = self._convert_array(X)
         initial_estimate = self.initial_estimate.repeat(X.shape[0])
@@ -338,26 +380,26 @@ class PGBM(object):
         return initial_estimate + mu
        
     def predict_dist(self, X, n_forecasts=100, parallel=True, output_sample_statistics=False):
-        """
-        Generate probabilistic estimates/forecasts for a given sample set X
+        """Generate probabilistic estimates/forecasts for a given sample set X
         
-        Example::
-            >> train_set = (X_train, y_train)
-            >> test_set = (X_test, y_test)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-            >> yhat_test_dist = model.predict_dist(X_test)
+		:param X: sample set of size [n_samples x n_features] for which to create the estimates/forecasts.
+		:type X: torch.Tensor
+		:param n_forecasts: number of estimates/forecasts to create, defaults to 100
+		:type n_forecasts: int, optional
+		:param parallel: compute predictions for all trees in parallel (`True`) or serial (`False`). Use `False` when experiencing out-of-memory errors.
+		:type parallel: boolean, optional
+		:param output_sample_statistics: whether to also output the learned sample mean and variance. If True, the function will return a tuple (forecasts, mu, variance) with the latter arrays containing the learned mean and variance per sample that can be used to parameterize a distribution, defaults to False
+		:type output_sample_statistics: boolean, optional
+		
+		:return: predictions of size [n_forecasts x n_samples]
+		:rtype: torch.Tensor
+		
+		Example:
+		
+		.. code-block:: python
+			
+			yhat_test = model.predict_dist(X_test)
         
-        Args:
-            X (array of [n_samples x n_features]): sample set for which to create 
-            the estimates/forecasts.
-            n_forecasts (integer): number of estimates/forecasts to create.
-            parallel (boolean): whether to generate the estimates in parallel or using a serial computation.
-                Use serial if you experience RAM or GPU out-of-memory errors when using this function. Otherwise,
-                parallel is recommended as it is much faster.
-            output_sample_statistics (boolean): whether to also output the learned sample mean and variance. If True,
-                the function will return a tuple (forecasts, mu, variance) with the latter arrays containing the learned
-                mean and variance per sample that can be used to parameterize a distribution.
         """
         X = self._convert_array(X)
         initial_estimate = self.initial_estimate.repeat(X.shape[0])
@@ -479,25 +521,29 @@ class PGBM(object):
             return yhat
     
     def crps_ensemble(self, yhat_dist, y):
-        """
-        Calculate the empirical Continuously Ranked Probability Score for a set 
-        of forecasts for a number of samples.
+        """Calculate the empirical Continuously Ranked Probability Score (CRPS) for a set of forecasts for a number of samples (lower is better). 
+		
+		Based on `crps_ensemble` from `properscoring` https://pypi.org/project/properscoring/
         
-        Based on `crps_ensemble` from `properscoring`
-        https://pypi.org/project/properscoring/
-        
-        Example::
-            >> train_set = (X_train, y_train)
-            >> test_set = (X_test, y_test)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-            >> yhat_test_dist = model.predict_dist(X_test)
-            >> crps = model.crps_ensemble(yhat_test_dist, y_test)
-        
-        Args:
-            yhat_dist (array of [n_forecasts x n_samples]): array containing forecasts 
-            for each sample.
-            y (array of [n_samples]): ground truth value of each sample.
+		:param yhat_dist: forecasts for each sample of size [n_forecasts x n_samples].
+		:type yhat_dist: torch.Tensor
+		:param y: ground truth value of each sample of size [n_samples].
+		:type y: torch.Tensor
+		
+		:return: CRPS score for each sample
+		:rtype: torch.Tensor
+		
+		Example:
+		
+		.. code-block:: python
+			
+			train_set = (X_train, y_train)
+			test_set = (X_test, y_test)
+			model = PGBM()
+			model.train(train_set, objective, metric)
+			yhat_test_dist = model.predict_dist(X_test)
+			crps = model.crps_ensemble(yhat_test_dist, y_test)
+			
         """
         y = self._convert_array(y)
         yhat_dist = self._convert_array(yhat_dist)
@@ -526,18 +572,21 @@ class PGBM(object):
         return crps       
     
     def save(self, filename):
-        """
-        Save a PGBM model to a file. The model parameters are saved as numpy arrays and dictionaries. 
-        
-        Example::
-            >> train_set = (X_train, y_train)
-            >> test_set = (X_test, y_test)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-            >> model.save('model.pt')
-        
-        Args:
-            filename (string): name and location to save the model to
+        """Save a PGBM model to a file. The model parameters are saved as numpy arrays and dictionaries.
+		
+		:param filename: location of model file
+		:type filename: str
+		
+		:return: dictionary saved in filename
+		:rtype: dictionary
+		
+		Example:
+		
+		.. code-block:: python
+			
+			model = PGBM()
+			model.train(train_set, objective, metric)
+			model.save('model.pt')
         """
         state_dict = {'nodes_idx': self.nodes_idx[:self.best_iteration].cpu().numpy(),
                       'nodes_split_feature':self.nodes_split_feature[:self.best_iteration].cpu().numpy(),
@@ -573,19 +622,22 @@ class PGBM(object):
             pickle.dump(state_dict, handle)   
     
     def load(self, filename, device=None):
-        """
-        Load a PGBM model from a file to a device. 
-        
-        Example::
-            >> train_set = (X_train, y_train)
-            >> test_set = (X_test, y_test)
-            >> model = PGBM()
-            >> model.load('model.pt') # Load to default device (cpu)
-            >> model.load('model.pt', device=torch.device(0)) # Load to default GPU at index 0
-        
-        Args:
-            filename (string): location of model file.
-            device (torch.device): device to which to load the model. Default = 'cpu'.
+        """Load a PGBM model from a file.
+		
+		:param filename: location of model file
+		:type filename: str
+		:param device: torch device, defaults to torch.device('cpu')
+		:type device: torch.device, optional
+		
+		:return: `self`
+		:rtype: PGBM object
+		
+		Example:
+		
+		.. code-block:: python
+			
+			model = PGBM()
+			model.load('model.pt')
         """
         if device is None:
             self.torch_device = torch.device('cpu')
@@ -633,29 +685,36 @@ class PGBM(object):
         self.new_model = False
         
     def permutation_importance(self, X, y=None, n_permutations=10, levels=None):
-        """
-        Calculate feature importance of a PGBM model for a sample set X by randomly 
-        permuting each feature. 
+        """Calculate feature importance of a PGBM model for a sample set X by randomly permuting each feature. 
+		
+		This function can be executed in a supervised and unsupervised manner, depending on whether y is given. 
+		
+		If y is provided, the output of this function is the change in error metric when randomly permuting a feature. 
+		
+		If y is not provided, the output is the weighted average change in prediction when randomly permuting a feature. 
+		
+		:param X: sample set of size [n_samples x n_features] for which to determine the feature importance.
+		:type X: torch.Tensor
+		:param y: ground truth of size [n_samples] for sample set X, defaults to None
+		:type y: torch.Tensor, optional
+		:param n_permutations: number of random permutations to perform for each feature, defaults to 10
+		:type n_permutations: int, optional
+		
+		:return: permutation importance score per feature
+		:rtype: torch.Tensor
+		
+		Example:
+		
+		.. code-block:: python
+		
+			train_set = (X_train, y_train)
+			test_set = (X_test, y_test)
+			model = PGBM()
+			model.train(train_set, objective, metric)
+			perm_importance_supervised = model.permutation_importance(X_test, y_test)  # Supervised
+			perm_importance_unsupervised = model.permutation_importance(X_test)  # Unsupervised
         
-        This function can be executed in a supervised and unsupervised manner, depending
-        on whether y is given. If y is given, the output of this function is the change
-        in error metric when randomly permuting a feature. If y is not given, the output
-        is the weighted average change in prediction when randomly permuting a feature. 
-        
-        Example::
-            >> train_set = (X_train, y_train)
-            >> test_set = (X_test, y_test)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-            >> perm_importance_supervised = model.permutation_importance(X_test, y_test)  # Supervised
-            >> perm_importance_unsupervised = model.permutation_importance(X_test)  # Unsupervised
-        
-        Args:
-            X (array of [n_samples x n_features]): sample set for which to determine the feature importance.
-            y (array of [n_samples]): ground truth for sample set X.
-            n_permutations (integer): number of random permutations to perform for each feature.
-            levels (dict of arrays):only applicable when using a levels argument in the error metric.
-        """
+		"""
         X = self._convert_array(X)
         n_samples = X.shape[0]
         n_features = X.shape[1]
@@ -687,26 +746,33 @@ class PGBM(object):
         return permutation_importance_metric
 
     def optimize_distribution(self, X, y, distributions=None, tree_correlations=None):
-        """
-        Find the distribution and tree correlation that best fits the data according to lowest CRPS score. The parameters
-        'distribution' and 'tree_correlation' of a PGBM model will be adjusted to the best values after running this script.
-        
-        This function returns the best found distribution and tree correlation.
-        
-        Example::
-            >> train_set = (X_train, y_train)
-            >> validation_set = (X_validation, y_validation)
-            >> model = PGBM()
-            >> model.train(train_set, objective, metric)
-            >> yhat_dist = model.optimize_distribution(X_validation, y_validation)
-        
-        Args:
-            X (array of [n_samples x n_features]): sample set for which to create 
-            the estimates/forecasts.
-            y (array of [n_samples]): ground truth for sample set X.
-            distributions (list of strings): optional, list containing distributions to choose from. Options are:
-                normal, studentt, laplace, logistic, lognormal, gamma, gumbel, weibull, negativebinomial, poisson.
-            tree_correlations (vector): optional, vector containing tree correlations to use in optimization procedure.
+        """Find the distribution and tree correlation that best fits the data according to lowest CRPS score. 
+		
+		The parameters 'distribution' and 'tree_correlation' of a PGBM model will be adjusted to the best values after running this script. 
+		
+		This function returns the best found distribution and tree correlation.
+		
+		:param X: sample set of size [n_samples x n_features] for which to optimize the distribution.
+		:type X: torch.Tensor
+		:param y: ground truth of size [n_samples] for sample set X
+		:type y: torch.Tensor
+		:param distributions: list containing distributions to choose from. Options are: `normal`, `studentt`, `laplace`, `logistic`, `lognormal`, `gamma`, `gumbel`, `weibull`, `negativebinomial`, `poisson`. Defaults to None (corresponds to iterating over all distributions)
+		:type distributions: list, optional
+		:param tree_correlations: vector containing tree correlations to use in optimization procedure, defaults to None (corresponds to iterating over a default range).
+		:type tree_correlations: torch.Tensor, optional
+		
+		:return: distribution and tree correlation that yields lowest CRPS
+		:rtype: tuple
+
+		Example:
+		
+		.. code-block:: python
+		
+			train_set = (X_train, y_train)
+			validation_set = (X_validation, y_validation)
+			model = PGBM()
+			(best_dist, best_tree_corr) = model.optimize_distribution(X_validation, y_validation)
+
         """               
         # Convert input data if not right type
         X = self._convert_array(X)
@@ -1210,166 +1276,110 @@ def _create_tree(X: torch.Tensor, gradient: torch.Tensor, hessian: torch.Tensor,
         leaves_mu, leaves_var, feature_importance, yhat_train
 
 class PGBMRegressor(BaseEstimator):
-    """
-    Probabilistic Gradient Boosting Machines (PGBM) Regressor.
+    """ Probabilistic Gradient Boosting Machines (PGBM) Regressor (Scikit-learn wrapper)
+	
+	PGBMRegressor fits a Probabilistic Gradient Boosting Machine regression model and returns point and probabilistic predictions. 
+	
+	This class uses Torch as backend.
+	
+	:param objective: Objective function to minimize. If not `mse`, a user defined objective function should be supplied in the form of:
     
-    PGBMRegressor fits a Gradient Boosting Machine regression model and returns
-    point and probabilistic predictions.
-    
-    This class uses PyTorch as backend.
-    
-    Ref:
-       Olivier Sprangers, Sebastian Schelter, Maarten de Rijke. 
-       Probabilistic Gradient Boosting Machines for Large-Scale Probabilistic Regression.
-       https://arxiv.org/abs/2106.0168 
-       Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and
-       Data Mining (KDD ’21), August 14–18, 2021, Virtual Event, Singapore.
-       https://doi.org/10.1145/3447548.3467278
-            
-    ----------
-    objective : str or function, default='mse'
-        Objective function to minimize. If not 'mse', a user defined objective 
-        function should be supplied in the form of:
-            
-        (A): in case parameter "derivatives='exact'"
-            
-            def objective(y, yhat, sample_weight=None):
-                [......]
-                
-                return gradient, hessian
-            
-            in which gradient and hessian are of the same shape as y.
-        
-        (B): in case parameter "derivatives='approx'"
+		.. code-block:: python	
 
-            def objective(y, yhat, sample_weight=None):
-                [......]
-                
-                return loss
-            
-            in which loss is a scalar, differentiable loss.
-
-    metric : str or function, default='rmse'
-        Metric to evaluate predictions during training and evaluation. If not 
-        'rmse', a user defined metric should be supplied in the form of:
-            
-            def metric(y, yhat, sample_weight=None):
-                [......]
-                
-                return metric
-        
-            in which metric is a scalar.
-
-    max_leaves : int, default=32 
-        The maximum number of leaves per tree. Increase this value to create 
-        more complicated trees, and reduce the value to create simpler trees 
-        (reduce overfitting).
-        
-    learning_rate : float, default=0.1, constraint>0
-        The learning rate of the algorithm; the amount of each new tree 
-        prediction that should be added to the ensemble.
-
-    n_estimators : int, default=100, constraint>0
-        The number of trees to create. Typically setting this value higher may 
-        improve performance, at the expense of training speed and potential for 
-        overfit. Use in conjunction with learning rate and max_leaves; more 
-        trees generally requires a lower learning_rate and/or a lower max_leaves.
-        
-    min_split_gain : float, default = 0.0, constraint >= 0.0 
-        The minimum gain for a node to split when building a tree.
-        
-    min_data_in_leaf : int, default= 3, constraint>= 3. 
-        The minimum number of samples in a leaf of a tree. Increase this value 
-        to reduce overfit.
-        
-    bagging_fraction : float, default=1, constraint>0, constraint<=1. 
-        Fraction of samples to use when building a tree. Set to a value between
-        0 and 1 to randomly select a portion of samples to construct each new 
-        tree. A lower fraction speeds up training (and can be used to deal with
-        out-of-memory issues when training on GPU) and may reduce overfit.
-        
-    feature_fraction : float, default=1, constraint>0, constraint<=1.
-        Fraction of features to use when building a tree. Set to a value between
-        0 and 1 to randomly select a portion of features to construct each new 
-        tree. A lower fraction speeds up training (and can be used to deal with
-        out-of-memory issues when training on GPU) and may reduce overfit. 
-
-    max_bin : int, default=256, constraint<32,767
-        The maximum number of bins used to bin continuous features. Increasing 
-        this value can improve prediction performance, at the cost of training 
-        speed and potential overfit.
-
-    reg_lambda : float, default=1.0, constraint>0
-        Regularization parameter.
-        
-    random_state : int, default=2147483647
-        Random seed to use for feature_fraction and bagging_fraction (latter 
-        only for Numba backend - for speed considerations the Torch backend 
-        bagging_fraction determination is not yet deterministic).
-        
-    device : str, default=cpu
-        Traininig device. Choices are 'cpu' or 'gpu'.
-        
-    gpu_device_id : int, default=0 
-        Integer with the index of the GPU used for training. Change this when
-        you'd like to train on a different GPU within your node. For multi-gpu
-        and multinode training, use the Python API (not this sklearn wrapper)
-        
-    derivatives : str, default=exact. 
-        If a loss function with an analytical gradient and hessian is provided,
-        use 'exact'. If a loss function with a scalar, differentiable loss is
-        provided, use approx to let PyTorch use auto-differentiation to 
-        calculate the gradient and (approximate) hessian.
-     
-    distribution : str, default='normal'
-        Choice of output distribution for probabilistic predictions. Choices 
-        are normal, studentt, laplace, logistic, gamma, gumbel, poisson. Note 
-        that the studentt distribution has a constant degree-of-freedom of 3.
+			def objective(y, yhat, sample_weight=None):
+				[......]
+				
+				return gradient, hessian
+			
     
-    checkpoint : bool, default=False
-        Boolean to save a model checkpoint after each iteration to the current 
-        working directory.
+		in which gradient and hessian are of the same shape as y.
+	
+	:type objective: str or function, default='mse'
+	
+	:param metric: Metric to evaluate predictions during training and evaluation. If not `rmse`, a user defined metric function should be supplied in the form of:
     
-    tree_correlation : float, default=np.log_10(n_samples) / 100
-        Tree correlation hyperparameter. This controls the amount of 
-        correlation we assume to exist between each subsequent tree in the 
-        ensemble.
+		.. code-block:: python	
+
+			def metric(y, yhat, sample_weight=None):
+				[......]
+				
+				return metric
+			
     
-    monotone_contraints : array, default=None. Array detailing
-        monotone constraints for each feature in the dataset, where 0 represents
-        no constraint, 1 a positive monotone constraint, and -1 a negative
-        monotone constraint. For example, for a dataset with 3 features, this 
-        parameter could be [1, 0, -1] for respectively a positive, none and 
-        negative monotone contraint on feature 1, 2 and 3.
-            
-    monotone_iterations : int, default=1. The number of alternative splits that
-        will be considered if a monotone constraint is violated by the current
-        split proposal. Increase this to improve accuracy at the expense of 
-        training speed. Note: the monotone_constraints need to be set in the
-        .fit() method. 
+		in which metric is a scalar.
+	
+	:type metric: str or function, default='rmse'
+	
+	:param max_leaves: The maximum number of leaves per tree. Increase this value to create more complicated trees, and reduce the value to create simpler trees (reduce overfitting).
+	:type max_leaves: int, default=32
+	
+	:param learning_rate: The learning rate of the algorithm; the amount of each new tree prediction that should be added to the ensemble.
+	:type learning_rate: float, default=0.1
+
+	:param n_estimators:  The number of trees to create. Typically setting this value higher may  improve performance, at the expense of training speed and potential for overfit. Use in conjunction with learning rate and max_leaves; more trees generally requires a lower learning_rate and/or a lower max_leaves.
+	:type n_estimators: int, default=100, constraint>0
+	
+	:param min_split_gain: The minimum gain for a node to split when building a tree.
+	:type min_split_gain: float, default = 0.0, constraint >= 0.0
+	
+	:param min_data_in_leaf: The minimum number of samples in a leaf of a tree. Increase this value to reduce overfit.
+	:type min_data_in_leaf: int, default=3, constraint>=2
+	
+	:param bagging_fraction: Fraction of samples to use when building a tree. Set to a value between 0 and 1 to randomly select a portion of samples to construct each new tree. A lower fraction speeds up training (and can be used to deal with out-of-memory issues when training on GPU) and may reduce overfit.
+	:type bagging_fraction: float, default=1, constraint>0, constraint<=1
+	
+	:param feature_fraction: Fraction of features to use when building a tree. Set to a value between 0 and 1 to randomly select a portion of features to construct each new tree. A lower fraction speeds up training (and can be used to deal with out-of-memory issues when training on GPU) and may reduce overfit.
+	:type feature_fraction: float, default=1, constraint>0, constraint<=1
+	
+	:param max_bin: The maximum number of bins used to bin continuous features. Increasing this value can improve prediction performance, at the cost of training speed and potential overfit.
+	:type max_bin: int, default=256, constraint<=32,767
+	
+	:param reg_lambda: Regularization parameter.
+	:type reg_lambda: float, default=1.0, constraint>0
+	
+	:param random_state: Random seed to use for feature_fraction and bagging_fraction.
+	:type random_state: int, default=2147483647
+	
+	:param device: Choose from `cpu` or `gpu`. Set Torch training device.
+	:type device: str, default=`cpu`
+
+	:param gpu_device_id: id of gpu device in case multiple gpus are present in the system, defaults to 0.
+	:type gpu_device_id: int, default=0
+
+	:param derivatives: Choose from `exact` or `approx`. Determines whether to compute the derivatives exactly or approximately. If `exact`, PGBMRegressor expects a loss function that outputs a gradient and hessian vector of size [n_training_samples]. If `approx`, PGBMRegressor expects a loss function with a scalar output.
+	:type derivatives: str, default=`exact`
+
+	:param distribution: Choice of output distribution for probabilistic predictions. Options are: `normal`, `studentt`, `laplace`, `logistic`, `lognormal`, `gamma`, `gumbel`, `weibull`, `negativebinomial`, `poisson`. 
+	:type distribution: str, default=`normal`
+	
+	:param checkpoint: Set to `True` to save a model checkpoint after each iteration to the current working directory.
+	:type checkpoint: bool, default=`False`
+	
+	:param tree_correlation: Tree correlation hyperparameter. This controls the amount of correlation we assume to exist between each subsequent tree in the ensemble.
+	:type tree_correlation: float, default=np.log_10(n_samples_train)/100
+	
+	:param monotone_constraints: List detailing monotone constraints for each feature in the dataset, where 0 represents no constraint, 1 a positive monotone constraint, and -1 a negative monotone constraint. For example, for a dataset with 3 features, this parameter could be [1, 0, -1] for respectively a positive, none and negative monotone contraint on feature 1, 2 and 3.
+	:type monotone_constraints: List or torch.Tensor
+	
+	:param monotone_iterations: The number of alternative splits that will be considered if a monotone constraint is violated by the current split proposal. Increase this to improve accuracy at the expense of training speed.  
+	:type monotone_iterations: int, default=1
+	
+	:param verbose: Flag to output metric results for each iteration. Set to 1 to supress output.
+	:type verbose: int, default=2
+	
+	:param init_model: Path to an initial model for which continual training is desired. The model will use the parameters from the initial model.
+	:type init_model: str, default=None
+	
+	:return: `self`
+	:rtype: PGBM object
+	
+	Example: 
+		
+        .. code-block:: python
         
-    verbose : int, default=2.
-        Flag to output metric results for each iteration. Set to 1 to supress 
-        output.
-        
-    init_model: str, default=None.
-        Path to an initial model for which continual training is desired. The
-        model will use the parameters from the initial model.
+            from pgbm import PGBMRegressor
+            model = PGBMRegressor()	
     
-    Attributes
-    ----------
-    learner_ : Fitted PGBM learner.         
-    
-    Examples
-    --------
-    >>> from pgbm import PGBMRegressor
-    >>> from sklearn.model_selection import train_test_split
-    >>> from sklearn.datasets import load_boston
-    >>> X, y = load_boston(return_X_y=True)
-    >>> X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
-    >>> model = PGBMRegressor().fit(X_train, y_train)  
-    >>> yhat_point = model.predict(X_test)
-    >>> yhat_dist = model.predict_dist(X_test)
     """
     def __init__(self, objective='mse', metric='rmse', max_leaves=32, learning_rate=0.1, n_estimators=100,
                  min_split_gain=0.0, min_data_in_leaf=3, bagging_fraction=1, feature_fraction=1, max_bin=256,
@@ -1401,12 +1411,46 @@ class PGBMRegressor(BaseEstimator):
         self.init_model = init_model
         
         if self.init_model is not None:
-            device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
+            self._torch_device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
             self.learner_ = PGBM()
-            self.learner_.load(self.init_model, device=device)
+            self.learner_.load(self.init_model, device=self._torch_device)
+    
+    def _torch_float_array(self, array):
+        return torch.from_numpy(np.array(array).astype(np.float32)).float().to(self._torch_device)
 
     def fit(self, X, y, eval_set=None, sample_weight=None, eval_sample_weight=None,
             early_stopping_rounds=None):
+        """Fit a PGBMRegressor model.
+
+        :param X: sample set of size [n_training_samples x n_features]
+        :type X: torch.Tensor
+        :param y: ground truth of size [n_training_samples] for sample set X 
+        :type y: torch.Tensor
+        :param eval_set: validation set of size ([n_validation_samples x n_features], [n_validation_samples]), defaults to None
+        :type eval_set: tuple, optional
+        :param sample_weight: sample weights for the training data, defaults to None
+        :type sample_weight: torch.Tensor, optional
+        :param eval_sample_weight: sample weights for the eval_set, defaults to None
+        :type eval_sample_weight: torch.Tensor, optional
+        :param early_stopping_rounds: stop training if metric on the eval_set has not improved for `early_stopping_rounds`, defaults to None
+        :type early_stopping_rounds: int, optional
+        
+        :return: `self`
+        :rtype: fitted PGBM object
+
+        Example: 
+            
+        .. code-block:: python
+        
+            from pgbm import PGBMRegressor
+            from sklearn.model_selection import train_test_split
+            from sklearn.datasets import fetch_california_housing
+            X, y = fetch_california_housing(return_X_y=True)
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+            model = PGBMRegressor()
+            model.fit(X_train, y_train)
+
+        """            
         # Set estimator type
         self._estimator_type = "regressor"
         # Check that X and y have correct shape and convert to float32
@@ -1452,22 +1496,21 @@ class PGBMRegressor(BaseEstimator):
         else:
             self._objective = self.objective
         if (self.metric == 'rmse'):
-            self._metric = self._rmseloss_metric
+            self._metric = self.rmseloss_metric
         else:
             self._metric = self.metric    
         # Check sample weight shape
-        torch_array = lambda array: torch.from_numpy(np.array(array).astype(np.float32)).float()
-        device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
+        self._torch_device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
         if sample_weight is not None: 
             sample_weight = check_array(sample_weight, ensure_2d=False)
             if len(sample_weight) != len(y):
                 raise ValueError('Length of sample_weight does not equal length of X and y')
-            sample_weight = torch_array(sample_weight).to(device)
+            sample_weight = self._torch_float_array(sample_weight)
         if eval_sample_weight is not None: 
             eval_sample_weight = check_array(eval_sample_weight, ensure_2d=False)
             if len(eval_sample_weight) != len(y_valid):
                 raise ValueError("Length of eval_sample_weight does not equal length of X_valid and y_valid")
-            eval_sample_weight = torch_array(eval_sample_weight).to(device)
+            eval_sample_weight = self._torch_float_array(eval_sample_weight)
 
         # Train model
         if self.init_model is None:
@@ -1482,6 +1525,23 @@ class PGBMRegressor(BaseEstimator):
         return self
 
     def predict(self, X, parallel=True):
+        """Generate point estimates/forecasts for a given sample set X.
+
+		:param X: sample set of size [n_samples x n_features] for which to create the estimates/forecasts.
+		:type X: torch.Tensor
+		:param parallel: compute predictions for all trees in parallel (`True`) or serial (`False`). Use `False` when experiencing out-of-memory errors.
+		:type parallel: boolean, optional
+		
+		:return: predictions of size [n_samples]
+		:rtype: np.array
+
+		Example:
+		
+		.. code-block:: python
+			
+			yhat_test = model.predict(X_test)
+        
+        """         
         check_is_fitted(self)
         X = check_array(X)
         X = X.astype(np.float32)
@@ -1489,6 +1549,27 @@ class PGBMRegressor(BaseEstimator):
         return self.learner_.predict(X, parallel).cpu().numpy()
     
     def score(self, X, y, sample_weight=None, parallel=True):
+        """Compute R2 score of fitted PGBMRegressor
+
+        :param X: sample set of size [n_samples x n_features] for which to create the estimates/forecasts.
+        :type X: torch.Tensor
+        :param y: ground truth of size [n_samples]
+        :type y: torch.Tensor
+        :param sample_weight: sample weights, defaults to None
+        :type sample_weight: torch.Tensor, optional
+		:param parallel: compute predictions for all trees in parallel (`True`) or serial (`False`). Use `False` when experiencing out-of-memory errors.
+		:type parallel: boolean, optional
+        :return: R2 score
+        :rtype: float
+		
+        Example:
+		
+		.. code-block:: python
+			
+			model = PGBMRegressor()
+			model.fit(X_train, y_train)
+			r2_score = model.score(X_test, y_test)       
+        """        
         # Checks
         X, y = check_X_y(X, y)
         X, y = X.astype(np.float32), y.astype(np.float32)
@@ -1496,13 +1577,11 @@ class PGBMRegressor(BaseEstimator):
         yhat = self.predict(X, parallel)
         
         # Check sample weight shape
-        torch_array = lambda array: torch.from_numpy(np.array(array).astype(np.float32)).float()
-        device = torch.device(self.gpu_device_id) if self.device=='gpu' else torch.device('cpu')
         if sample_weight is not None: 
             sample_weight = check_array(sample_weight, ensure_2d=False)
             if len(sample_weight) != len(y):
                 raise ValueError("Length of sample_weight does not equal length of X and y")
-            sample_weight = torch_array(sample_weight).to(device)
+            sample_weight = self._torch_float_array(sample_weight)
                 
         # Score prediction with r2
         score = r2_score(y, yhat, sample_weight)
@@ -1510,6 +1589,27 @@ class PGBMRegressor(BaseEstimator):
         return score
     
     def predict_dist(self, X, n_forecasts=100, parallel=True, output_sample_statistics=False):
+        """Generate probabilistic estimates/forecasts for a given sample set X
+        
+		:param X: sample set of size [n_samples x n_features] for which to create the estimates/forecasts.
+		:type X: torch.Tensor
+		:param n_forecasts: number of estimates/forecasts to create, defaults to 100
+		:type n_forecasts: int, optional
+		:param parallel: compute predictions for all trees in parallel (`True`) or serial (`False`). Use `False` when experiencing out-of-memory errors.
+		:type parallel: boolean, optional
+		:param output_sample_statistics: whether to also output the learned sample mean and variance. If True, the function will return a tuple (forecasts, mu, variance) with the latter arrays containing the learned mean and variance per sample that can be used to parameterize a distribution, defaults to False
+		:type output_sample_statistics: boolean, optional
+		
+		:return: predictions of size [n_forecasts x n_samples]
+		:rtype: np.array
+
+		Example:
+		
+		.. code-block:: python
+			
+			yhat_test = model.predict_dist(X_test)
+        
+        """            
         check_is_fitted(self)
         X = check_array(X)
         X = X.astype(np.float32)
@@ -1517,6 +1617,22 @@ class PGBMRegressor(BaseEstimator):
         return self.learner_.predict_dist(X, n_forecasts, parallel, output_sample_statistics).cpu().numpy()
         
     def save(self, filename):
+        """Save a fitted PGBM model to a file. The model parameters are saved as numpy arrays and dictionaries.
+		
+		:param filename: location of model file
+		:type filename: str
+		
+		:return: dictionary saved in filename
+		:rtype: dictionary
+		
+		Example:
+		
+		.. code-block:: python
+			
+			model = PGBMRegressor()
+			model.fit(X, y)
+			model.save('model.pt')
+        """        
         self.learner_.save(filename)
     
     def _mseloss_objective(self, yhat, y, sample_weight=None):
@@ -1529,11 +1645,60 @@ class PGBMRegressor(BaseEstimator):
     
         return gradient, hessian
     
-    def _rmseloss_metric(self, yhat, y, sample_weight=None):
+    def rmseloss_metric(self, yhat, y, sample_weight=None):
+        """Root Mean Squared Error Loss 
+		
+		:param yhat: forecasts for each sample of size [n_samples].
+		:type yhat: np.array
+		:param y: ground truth value of each sample of size [n_samples].
+		:type y: np.array
+		:param sample_weight: sample weights of size [n_samples].
+		:type sample_weight: np.array
+		
+		:return: RMSE
+		:rtype: float
+		
+		Example:
+		
+		.. code-block:: python
+			
+			model = PGBMRegressor()
+			model.fit(X_train, y_train)
+			yhat_test = model.predict(X_test)
+			rmse = model.rmseloss_metric(yhat_test, y_test)
+			
+        """     
         error = (yhat - y)
         if sample_weight is not None:
             error *= sample_weight
-        
-        loss = torch.sqrt(torch.mean(torch.square(error)))
+                
+        loss = ((error**2).mean())**(0.5)
     
         return loss
+
+    def crps_ensemble(self, yhat_dist, y):
+        """Calculate the empirical Continuously Ranked Probability Score (CRPS) for a set of forecasts for a number of samples (lower is better). 
+		
+		Based on `crps_ensemble` from `properscoring` https://pypi.org/project/properscoring/
+        
+		:param yhat_dist: forecasts for each sample of size [n_forecasts x n_samples].
+		:type yhat_dist: np.array
+		:param y: ground truth value of each sample of size [n_samples].
+		:type y: np.array
+		
+		:return: CRPS score for each sample
+		:rtype: np.array
+		
+		Example:
+		
+		.. code-block:: python
+			
+			model = PGBMRegressor()
+			model.fit(X_train, y_train)
+			yhat_test_dist = model.predict_dist(X_test)
+			crps = model.crps_ensemble(yhat_test_dist, y_test)
+			
+        """
+        
+        return self.learner_.crps_ensemble(yhat_dist, y)
+        

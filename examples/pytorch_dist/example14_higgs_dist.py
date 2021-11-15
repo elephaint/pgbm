@@ -25,7 +25,7 @@ import argparse
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from pgbm import PGBM
+from pgbm_dist import PGBM
 import pandas as pd
 #%% Objective
 def mseloss_objective(yhat, y, sample_weight=None):
