@@ -25,8 +25,7 @@ existing frameworks:
 It is aimed at users interested in solving large-scale tabular
 probabilistic regression problems, such as probabilistic time series
 forecasting. For more details, read `our
-paper <https://arxiv.org/abs/2106.01682>`__ or check out the
-`examples <https://github.com/elephaint/pgbm/tree/main/examples>`__.
+paper <https://arxiv.org/abs/2106.01682>`__ or check out the examples in our `Github <https://github.com/elephaint/pgbm>`__ repository.
 
 .. toctree::
    :maxdepth: 1

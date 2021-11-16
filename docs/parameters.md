@@ -1,4 +1,4 @@
-# Hyperparameters #
+# Parameters #
 
 ## Training parameters ##
 PGBM employs the following set of hyperparameters (listed in alphabetical order):
@@ -93,8 +93,8 @@ class Objective(object):
         model = PGBMRegressor()
         model.set_params(**params)
         # 2. Fit model and score
-        score = np.mean(cross_val_score(model, self.X, self.y, cv=5, n_jobs=5, scoring='neg_root_mean_squared_error'))
-
+        score = np.mean(cross_val_score(model, self.X, self.y, cv=5, n_jobs=5, 
+                                        scoring='neg_root_mean_squared_error'))
         return score
 
 # 3. Create a study object and optimize the objective function.

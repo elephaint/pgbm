@@ -44,4 +44,4 @@ plt.legend(ncol=3)
 ```
 which should produce something similar to the following:
 ![PGBM Quick Start - California Housing Probabilistic Predictions](./figures/quick_start_firstexample.png)
-As you can see, the probabilistic forecast covers most of the actual observed values, which is typically desired. Moreover, the indicated forecast range varies per test point, indicating that the model has learned to produce different variances for various samples. Again, this is typically desired behaviour when forecasting. We can improve on this result through [hyperparameter tuning](./parameters##Parameter-tuning). 
+As you can see, the probabilistic forecast covers most of the actual observed values, which is typically desired. Moreover, the indicated forecast range varies per test point, indicating that the model has learned to produce different variances for various samples. Again, this is typically desired behaviour when forecasting. We can improve on this result through [hyperparameter tuning](./parameters.html#parameter-tuning). 
