@@ -1280,6 +1280,7 @@ class PGBMRegressor(BaseEstimator):
             X_valid, y_valid = eval_set[0], eval_set[1]
             X_valid, y_valid = check_X_y(X_valid, y_valid)
             X_valid, y_valid = X_valid.astype(np.float64), y_valid.astype(np.float64)
+            eval_set = (X_valid, y_valid)
 
         # Check parameter values and create parameter dict
         params = {'min_split_gain':self.min_split_gain,

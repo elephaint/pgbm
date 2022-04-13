@@ -41,7 +41,7 @@ params = {'device': 'gpu',
           'gpu_device_id': 0}
 #%% Train pgbm
 # Split data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=False)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=True, random_state=1)
 train_data = (X_train, y_train)
 # Train on set   
 model = PGBM()

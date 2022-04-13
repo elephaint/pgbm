@@ -29,7 +29,7 @@ import torch
 import numpy as np
 import torch.distributed as dist
 from torch.autograd import grad
-from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, LogNormal, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
+from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, Laplace, Uniform, TransformedDistribution, SigmoidTransform, AffineTransform, Gamma, Gumbel, Weibull
 from torch.utils.cpp_extension import load
 from pathlib import Path
 import pickle
@@ -467,9 +467,9 @@ class PGBM(object):
         elif self.distribution == 'lognormal':
             mu_adj = mu.clamp(1e-9)
             variance = torch.nan_to_num(variance, 1e-9).clamp(1e-9)
-            scale = ((variance + mu_adj**2) / mu_adj**2).log().clamp(1e-9)
-            loc = (mu_adj.log() - 0.5 * scale).clamp(1e-9)
-            yhat = LogNormal(loc, scale.sqrt()).rsample([n_forecasts])
+            loc = torch.log(mu_adj**2 / torch.sqrt(variance + mu_adj**2))
+            scale = torch.log(1 + variance / mu_adj**2).clamp(1e-9)
+            yhat = torch.exp(Normal(loc, torch.sqrt(scale)).rsample([n_forecasts]))
         elif self.distribution == 'gamma':
             variance = torch.nan_to_num(variance, 1e-9)
             mu_adj = torch.nan_to_num(mu, 1e-9)

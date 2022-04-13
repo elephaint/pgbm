@@ -1,3 +1,10 @@
+## 1.7 ##
+* Fixed bug in scikit-learn wrapper where eval_set was not correctly passed to PGBM model.
+* Fixed bug in `lognormal` distribution where empirical mean and variance was not correctly fitted to the output distribution.
+
+## 1.5 + 1.6 ##
+* Added documentation
+
 ## v1.4 ##
 * Pytorch version complete code rewrite improving speed by up to 3x on GPU. 
 * Replaced boston_housing by california housing as key example due to ethical concerns regarding its features (see here: https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_boston.html).

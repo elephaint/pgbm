@@ -144,3 +144,4 @@ notes/
 *.csv.gz
 /src/pgbm_jax
 /paper/datasets/naval.txt
+/src/pgbm/nsight
