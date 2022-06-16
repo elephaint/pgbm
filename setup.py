@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
 	name="pgbm",
-	version="1.7",
+	version="1.7.1",
 	description="Probabilistic Gradient Boosting Machines",
 	author="Olivier Sprangers",
 	author_email="o.r.sprangers@uva.nl",

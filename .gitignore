@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 # Specific directories & files
+.vscode/
 **/_old
 /paper/datasets/m5
 *.xls

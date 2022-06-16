@@ -1,3 +1,6 @@
+## 1.7.1 ##
+* Fixed bug in Manifest.in 
+
 ## 1.7 ##
 * Fixed bug in scikit-learn wrapper where eval_set was not correctly passed to PGBM model.
 * Fixed bug in `lognormal` distribution where empirical mean and variance was not correctly fitted to the output distribution.
