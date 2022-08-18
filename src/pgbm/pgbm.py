@@ -264,6 +264,8 @@ class PGBM(object):
         train_nodes = torch.ones(self.n_samples, dtype=torch.int64, device = self.torch_device)
         # Pre-compute split decisions for X_train
         X_train_splits = _create_X_splits(X_train, self.bins)
+        # Prepare logs for train metrics
+        self.train_metrics = torch.zeros(self.n_estimators, dtype=torch.float32, device=self.torch_device)
         # Initialize validation
         validate = False
         self.best_score = torch.tensor(0., device = self.torch_device, dtype=torch.float32)
@@ -271,6 +273,8 @@ class PGBM(object):
             validate = True
             early_stopping = 0
             X_validate, y_validate = self._convert_array(valid_set[0]), self._convert_array(valid_set[1]).squeeze()
+            # Prepare logs for validation metrics
+            self.validation_metrics = torch.zeros(self.n_estimators, dtype=torch.float32, device=self.torch_device)
             if self.new_model:
                 yhat_validate = self.initial_estimate.repeat(y_validate.shape[0])
                 self.best_score += float('inf')
@@ -304,6 +308,7 @@ class PGBM(object):
             gradient, hessian = self.objective(yhat_train, y_train, sample_weight)
             # Compute metric
             train_metric = self.metric(yhat_train, y_train, sample_weight)
+            self.train_metrics[estimator] = train_metric
             # Reset train nodes
             train_nodes.fill_(1)
             # Validation statistics
@@ -313,6 +318,7 @@ class PGBM(object):
                                                   self.leaves_idx[estimator], self.leaves_mu[estimator], 
                                                   self.learning_rate)
                 validation_metric = self.metric(yhat_validate, y_validate, eval_sample_weight)
+                self.validation_metrics[estimator] = validation_metric
                 if self.verbose > 1:
                     print(f"Estimator {estimator}/{self.n_estimators + start_iteration}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
                 if validation_metric < self.best_score:
@@ -339,7 +345,10 @@ class PGBM(object):
         self.leaves_idx             = self.leaves_idx[:self.best_iteration]
         self.leaves_mu              = self.leaves_mu[:self.best_iteration]
         self.leaves_var             = self.leaves_var[:self.best_iteration]
-                       
+        self.train_metrics          = self.train_metrics[:self.best_iteration]
+        if validate:
+            self.validation_metrics = self.validation_metrics[:self.best_iteration]
+
     def predict(self, X, parallel=True):
         """Generate point estimates/forecasts for a given sample set X.
         
