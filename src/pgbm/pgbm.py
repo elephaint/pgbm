@@ -1624,7 +1624,11 @@ class PGBMRegressor(BaseEstimator):
         X = check_array(X)
         X = X.astype(np.float32)
         
-        return self.learner_.predict_dist(X, n_forecasts, parallel, output_sample_statistics).cpu().numpy()
+        if output_sample_statistics:
+            yhat, mu, variance =  self.learner_.predict_dist(X, n_forecasts, parallel, output_sample_statistics)
+            return (yhat.cpu().numpy(), mu.cpu().numpy(), variance.cpu().numpy()) 
+        else:
+            return self.learner_.predict_dist(X, n_forecasts, parallel, output_sample_statistics).cpu().numpy()
         
     def save(self, filename):
         """Save a fitted PGBM model to a file. The model parameters are saved as numpy arrays and dictionaries.

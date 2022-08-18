@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
 	name="pgbm",
-	version="1.7.1",
+	version="1.8.0",
 	description="Probabilistic Gradient Boosting Machines",
 	author="Olivier Sprangers",
 	author_email="o.r.sprangers@uva.nl",
@@ -23,15 +23,6 @@ setuptools.setup(
          "Operating System :: OS Independent"],
     python_requires='>=3.7',
     install_requires=["scikit-learn>=0.22.0",
-                      "matplotlib>=2.2.3"],
-    extras_require={
-        "torch-gpu":["torch==1.10.0+cu102",
-                     "ninja>=1.10.2.2"],
-        "torch-cpu":["torch>=1.8.0",
-                     "ninja>=1.10.2.2"],
-        "numba":["numba>=0.53.1"],
-        "all":["torch==1.10.0+cu102",
-               "ninja>=1.10.2.2",
-               "numba>=0.53.1"]
-        },
+                      "matplotlib>=2.2.3",
+                      "ninja>=1.10.2.2"],
     zip_safe=False)

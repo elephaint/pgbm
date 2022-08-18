@@ -519,6 +519,8 @@ class PGBM(object):
         train_nodes = np.ones(self.bagging_samples, dtype=np.int64)
         # Pre-compute split decisions for X_train
         X_train_splits = self._create_X_splits(X_train, self.bins)
+        # Prepare logs for train metrics
+        self.train_metrics = np.zeros(self.n_estimators, dtype=np.float32)
         # Initialize validation
         validate = False
         self.best_score = 0
@@ -526,6 +528,8 @@ class PGBM(object):
             validate = True
             early_stopping = 0
             X_validate, y_validate = valid_set[0].astype(np.float64), valid_set[1].squeeze().astype(np.float64)
+            # Prepare logs for validation metrics
+            self.validation_metrics = np.zeros(self.n_estimators, dtype=np.float32)
             if self.new_model:
                 yhat_validate = self.initial_estimate.repeat(y_validate.shape[0])
                 self.best_score = np.inf
@@ -562,6 +566,7 @@ class PGBM(object):
             gradient, hessian = self.objective(yhat_train, y_train, sample_weight)
             # Compute metric
             train_metric = self.metric(yhat_train, y_train, sample_weight)
+            self.train_metrics[estimator] = train_metric
             # Reset train nodes
             train_nodes.fill(1)
             # Validation statistics
@@ -572,6 +577,7 @@ class PGBM(object):
                                                        self.learning_rate)
                 
                 validation_metric = self.metric(yhat_validate, y_validate, eval_sample_weight)
+                self.validation_metrics[estimator] = validation_metric
                 if (self.verbose > 1):
                     print(f"Estimator {estimator}/{self.n_estimators + start_iteration}, Train metric: {train_metric:.4f}, Validation metric: {validation_metric:.4f}")
                 if validation_metric < self.best_score:
@@ -598,6 +604,9 @@ class PGBM(object):
         self.leaves_idx             = self.leaves_idx[:self.best_iteration]
         self.leaves_mu              = self.leaves_mu[:self.best_iteration]
         self.leaves_var             = self.leaves_var[:self.best_iteration]
+        self.train_metrics          = self.train_metrics[:self.best_iteration]
+        if validate:
+            self.validation_metrics = self.validation_metrics[:self.best_iteration]
                        
     def predict(self, X, parallel=True):
         """Generate point estimates/forecasts for a given sample set X.

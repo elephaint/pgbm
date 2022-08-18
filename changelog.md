@@ -1,3 +1,7 @@
+## 1.8.0 ##
+* Fixed bug in PGBMRegressor not returning sample_statistics properly
+* Train and validation metrics are now an attribute of a fitted learner
+
 ## 1.7.1 ##
 * Fixed bug in Manifest.in 
 
