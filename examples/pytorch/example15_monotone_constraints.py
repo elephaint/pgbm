@@ -31,7 +31,6 @@ X, y = fetch_california_housing(return_X_y=True)
 #%% First, we train pgbm without monotonicity constraints
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
-train_data = (X_train, y_train)
 #%% Compute the dependency. We can compute this on train and test set, for speed purposes we choose test_set here.
 model = PGBMRegressor().fit(X_train, y_train)
 y0, x0 = partial_dependence(model, X_test, [0])
