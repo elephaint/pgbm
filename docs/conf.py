@@ -15,8 +15,9 @@ import sys
 import sphinx_rtd_theme
 import inspect
 from os.path import relpath, dirname
-sys.path.insert(0, os.path.abspath('../src/pgbm_nb/'))
-sys.path.insert(0, os.path.abspath('../src/pgbm/'))
+
+sys.path.insert(0, os.path.abspath('../'))
+# sys.path.insert(0, os.path.abspath('../pgbm/sklearn/'))
 
 # -- Project information -----------------------------------------------------
 
@@ -25,7 +26,7 @@ copyright = '2021, Olivier Sprangers, AirLab'
 author = 'Olivier Sprangers'
 
 # The full version, including alpha/beta/rc tags
-release = '1.5'
+release = '2.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -34,10 +35,13 @@ release = '1.5'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 # extensions = ['myst_parser', 'sphinx_rtd_theme', 'sphinx.ext.autodoc', 'sphinx.ext.viewcode', 'sphinx.ext.linkcode']
-extensions = ['myst_parser', 'sphinx_rtd_theme', 'sphinx.ext.autodoc', 'sphinx.ext.linkcode']
+extensions = ['myst_parser', 'sphinx_rtd_theme', 'sphinx.ext.autodoc', 'sphinx.ext.linkcode', 'sphinx.ext.napoleon']
+# extensions = ['myst_parser', 'sphinx_rtd_theme', 'sphinx.ext.autodoc']
 
 # From numpy: https://github.com/numpy/numpy/blob/83828f52b287fefb3d8753a21bd3441997a4d687/doc/source/conf.py#L303-L348
-import pgbm 
+# import pgbm.torch
+# import pgbm.sklearn 
+import pgbm
 
 def linkcode_resolve(domain, info):
     """

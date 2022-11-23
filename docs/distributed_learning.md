@@ -2,12 +2,12 @@
 
 To facilitate distributed training, PGBM leverages the `torch.distributed` backend. 
 
-We expose PGBM for distributed learning via `pgbm_dist`. This version works equivalently as `pgbm`, but allows to distribute the computations across multiple nodes and devices. Each node and device will have its own copy of the model and each model needs to be initialized with the total world size and process rank, for example:
+We expose PGBM for distributed learning via `PGBMDist`. This version works equivalently as `PGBM`, but allows to distribute the computations across multiple nodes and devices. Each node and device will have its own copy of the model and each model needs to be initialized with the total world size and process rank, for example:
 ```
-from pgbm_dist import PGBM
-model = PGBM(world_size=1, rank=0)
+from pgbm.torch import PGBMDist
+model = PGBMDist(world_size=1, rank=0)
 ```
-In the following, we refer to the [two examples we provide in our Github repository](https://github.com/elephaint/pgbm/tree/main/examples/pytorch_dist).
+In the following, we refer to the [two examples we provide in our Github repository](https://github.com/elephaint/pgbm/tree/main/examples/torch_dist).
 
 Note: to use the `higgs` dataset in any of the examples, download [here](https://archive.ics.uci.edu/ml/datasets/HIGGS), unpack and save `HIGGS.csv` to your local working directory.
 
