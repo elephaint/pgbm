@@ -78,6 +78,9 @@ jobs:
       - name: Checkout PGBM
         uses: actions/checkout@v3
 
+      - name: MacOS install OpenMP
+        uses: bash .github/scripts/build_mac_wheels.sh
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.11.2
 
