@@ -9,5 +9,5 @@ set -x
 #     cp $CONFTEST_PATH $CONFTEST_NAME
 # fi
 
-python ./examples/torch/example01_housing_cpu.py
-python ./examples/sklearn/example01_housing_cpu.py
+python $1/examples/torch/example01_housing_cpu.py
+python $1/examples/sklearn/example01_housing_cpu.py
