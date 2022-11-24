@@ -1,3 +1,4 @@
+# Source file on which this is based: https://github.com/scikit-learn/scikit-learn/blob/266d2a2b8d5be2fb074415e22f7411484fd35a46/.github/workflows/wheels.yml
 name: Build
 
 on: [push, pull_request]
@@ -84,6 +85,21 @@ jobs:
           python-version: '3.9'  # update once build dependencies are available
       
       - name: Build wheels
+        env:
+          CONFTEST_PATH: ${{ github.workspace }}/conftest.py
+          CONFTEST_NAME: conftest.py
+          CIBW_ENVIRONMENT: OMP_NUM_THREADS=2
+                            OPENBLAS_NUM_THREADS=2
+          CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
+          CIBW_ARCHS: all
+          # CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_image }}
+          # CIBW_MANYLINUX_I686_IMAGE: ${{ matrix.manylinux_image }}
+          # CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: bash .github/scripts/repair_windows_wheels.sh {wheel} {dest_dir}
+          # CIBW_BEFORE_TEST_WINDOWS: bash .github/scripts/build_minimal_windows_image.sh ${{ matrix.python }}
+          CIBW_TEST_REQUIRES: torch
+          CIBW_TEST_COMMAND: bash {project}/.github/scripts/test_wheels.sh
+          # CIBW_TEST_COMMAND_WINDOWS: bash {project}/.github/scripts/test_windows_wheels.sh ${{ matrix.python }}
+          CIBW_BUILD_VERBOSITY: 1
         run: bash .github/scripts/build_wheels.sh
 
       - name: Store artifacts
