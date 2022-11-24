@@ -32,3 +32,6 @@ if [[ "$RUNNER_OS" == "macOS" ]]; then
     export CXXFLAGS="$CXXFLAGS -I$PREFIX/include"
     export LDFLAGS="$LDFLAGS -Wl,-rpath,$PREFIX/lib -L$PREFIX/lib -lomp"
 fi
+
+python -m pip install cibuildwheel
+python -m cibuildwheel --output-dir wheelhouse

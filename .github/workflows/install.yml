@@ -1,14 +1,11 @@
-name: Build
-
-on: [push, pull_request]
-
+name: check_installations
+on: [push]
 jobs:
-  build_wheels:
-    name: Build wheel for cp${{ matrix.python }}-${{ matrix.platform_id }}-${{ matrix.manylinux_image }}
+  check_pip_installations:
+    name: Check pip installation for cp${{ matrix.python }}-${{ matrix.platform_id }}-${{ matrix.manylinux_image }}
     runs-on: ${{ matrix.os }}
 
     strategy:
-      # Ensure that a wheel builder finishes even if another fails
       fail-fast: false
       matrix:
         include:
@@ -74,14 +71,11 @@ jobs:
           - os: macos-latest
             python: 311
             platform_id: macosx_arm64
+    
     steps:
-      - name: Checkout PGBM
-        uses: actions/checkout@v3
-
-      - name: Build wheels
-        run: bash .github/scripts/build_mac_wheels.sh
-
-      - name: Store artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          path: ./wheelhouse/*.whl
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.8
+      - run: pip3 install torch
+      - run: pip install pgbm
+      - run: python examples/torch/example01_housing_cpu.py
+      - run: python examples/sklearn/example01_housing_cpu.py
