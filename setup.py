@@ -65,7 +65,6 @@ setup(
     url="https://github.com/elephaint/pgbm",
     packages=["pgbm.sklearn", "pgbm.torch"],
     package_data={"": ["*.pxd"]},
-    include_package_data=True,
     classifiers=[
          "Programming Language :: Python :: 3.8",
          "License :: OSI Approved :: Apache Software License",
