@@ -12,4 +12,4 @@ python -m pip install pgbm/dist/*.tar.gz
 
 # Run the tests on the installed source distribution
 
-python tests/test_training.py
+python pgbm/tests/test_training.py
