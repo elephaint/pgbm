@@ -14,9 +14,9 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.fixes import percentile
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
-from ._binning import _map_to_bins
-from .common import X_DTYPE, X_BINNED_DTYPE, ALMOST_INF, X_BITSET_INNER_DTYPE
-from ._bitset import set_bitset_memoryview
+from pgbm.sklearn._binning import _map_to_bins
+from pgbm.sklearn.common import X_DTYPE, X_BINNED_DTYPE, ALMOST_INF, X_BITSET_INNER_DTYPE
+from pgbm.sklearn._bitset import set_bitset_memoryview
 
 
 def _find_binning_thresholds(col_data, max_bins):

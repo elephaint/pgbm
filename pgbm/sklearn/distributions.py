@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit, prange, float64
 from sklearn.metrics._scorer import _BaseScorer
-from .common import Y_DTYPE
+from pgbm.sklearn.common import Y_DTYPE
 
 def crps_ensemble(yhat_dist, y):
     """Calculate the empirical Continuously Ranked Probability Score (CRPS) 

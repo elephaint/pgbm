@@ -2,7 +2,7 @@
 
 from cython.parallel import prange
 from libc.math cimport isnan
-from .common import Y_DTYPE
+from pgbm.sklearn.common import Y_DTYPE
 import numpy as np
 cimport numpy as cnp
 cnp.import_array()

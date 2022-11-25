@@ -2,5 +2,6 @@
 
 set -e
 set -x
-pwd
-pytest --pyargs pgbm
+cd tests/
+
+pytest
