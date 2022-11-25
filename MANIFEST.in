@@ -1,1 +1,1 @@
-recursive-include pgbm *.cpp *.cu *.pyx *.pxd
+recursive-include pgbm *.cpp *.cu *.pyx

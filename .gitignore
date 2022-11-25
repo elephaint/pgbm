@@ -146,3 +146,4 @@ notes/
 /src/pgbm_jax
 /paper/datasets/naval.txt
 /src/pgbm/nsight
+/pgbm/sklearn/*.c
