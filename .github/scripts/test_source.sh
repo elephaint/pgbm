@@ -14,4 +14,4 @@ python -m pip install pgbm/dist/*.tar.gz
 mkdir tmp_for_test
 cd tmp_for_test
 
-python $1/pgbm/tests/test_training.py
+python $1/tests/test_training.py

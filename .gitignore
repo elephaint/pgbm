@@ -139,7 +139,6 @@ notes/
 *.csv
 *.model
 *.h5
-/tests
 /benchmarks
 *.feather
 *.parquet
