@@ -39,7 +39,7 @@ def get_openmp_flag():
 
 # Cython modules
 extensions = ["_gradient_boosting.pyx", "histogram.pyx", "splitting.pyx", 
-            "_binning.pyx", "_predictor.pyx", "common.pyx", "utils.pyx"]
+            "_binning.pyx", "_bitset.pyx", "_predictor.pyx", "common.pyx", "utils.pyx"]
 
 ext_modules = []
 for extension in extensions:
