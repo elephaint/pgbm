@@ -15,4 +15,4 @@ mkdir tmp_for_test
 cd tmp_for_test
 pwd
 
-python $1/../tests/test_training.py
+python ../tests/test_training.py
