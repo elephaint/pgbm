@@ -2,16 +2,43 @@
 
 from cython.parallel import prange
 from libc.math cimport isnan
-import numpy as np
-
-from .common cimport X_DTYPE_C
-from .common cimport Y_DTYPE_C
 from .common import Y_DTYPE
-from .common cimport X_BINNED_DTYPE_C
-from .common cimport BITSET_INNER_DTYPE_C
-from .common cimport node_struct
-from ._bitset cimport in_bitset_2d_memoryview
+import numpy as np
+cimport numpy as cnp
+cnp.import_array()
 
+ctypedef cnp.npy_float64 X_DTYPE_C
+ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
+ctypedef cnp.npy_float64 Y_DTYPE_C
+ctypedef cnp.npy_uint32 BITSET_INNER_DTYPE_C
+
+cdef packed struct node_struct:
+    # Equivalent struct to PREDICTOR_RECORD_DTYPE to use in memory views. It
+    # needs to be packed since by default numpy dtypes aren't aligned
+    Y_DTYPE_C value
+    Y_DTYPE_C variance
+    unsigned int count
+    unsigned int feature_idx
+    X_DTYPE_C num_threshold
+    unsigned char missing_go_to_left
+    unsigned int left
+    unsigned int right
+    Y_DTYPE_C gain
+    unsigned int depth
+    unsigned char is_leaf
+    X_BINNED_DTYPE_C bin_threshold
+    unsigned char is_categorical
+    # The index of the corresponding bitsets in the Predictor's bitset arrays.
+    # Only used if is_categorical is True
+    unsigned int bitset_idx
+
+cdef inline unsigned char in_bitset_2d_memoryview(const BITSET_INNER_DTYPE_C [:, :] bitset,
+                                                  X_BINNED_DTYPE_C val,
+                                                  unsigned int row) nogil:
+
+    # Same as above but works on 2d memory views to avoid the creation of 1d
+    # memory views. See https://github.com/scikit-learn/scikit-learn/issues/17299
+    return (bitset[row, val // 32] >> (val % 32)) & 1
 
 def _predict_from_raw_data(  # raw data = non-binned data
         node_struct [:] nodes,

@@ -39,8 +39,7 @@ def get_openmp_flag():
 
 # Cython modules
 extensions = ["_gradient_boosting.pyx", "histogram.pyx", "splitting.pyx", 
-            "_binning.pyx", "_predictor.pyx", "_bitset.pyx", "_bitset.pyx", 
-            "common.pyx", "utils.pyx"]
+            "_binning.pyx", "_predictor.pyx", "common.pyx", "utils.pyx"]
 
 ext_modules = []
 for extension in extensions:
@@ -54,25 +53,26 @@ for extension in extensions:
     ext_modules.append(new_ext)
 
 # Setup
-setup(
-	name="pgbm",
-	version="2.0.0",
-	description="Probabilistic Gradient Boosting Machines",
-	author="Olivier Sprangers",
-	author_email="o.r.sprangers@uva.nl",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/elephaint/pgbm",
-    packages=["pgbm.sklearn", "pgbm.torch"],
-    package_data={"": ["*.pxd"]},
-    classifiers=[
-         "Programming Language :: Python :: 3.8",
-         "License :: OSI Approved :: Apache Software License",
-         "Operating System :: OS Independent"],
-    python_requires='>=3.8',
-    install_requires=["scikit-learn>=1.1.2",
-                      "ninja>=1.10.2.2",
-                      "numba>=0.56"],
-    zip_safe=False,
-    ext_modules=cythonize_extensions(ext_modules),
-    )
+if __name__ == "__main__":
+    setup(
+        name="pgbm",
+        version="2.0.0",
+        description="Probabilistic Gradient Boosting Machines",
+        author="Olivier Sprangers",
+        author_email="o.r.sprangers@uva.nl",
+        long_description=long_description,
+        long_description_content_type="text/markdown",
+        url="https://github.com/elephaint/pgbm",
+        packages=["pgbm.sklearn", "pgbm.torch"],
+        include_package_data=True,
+        classifiers=[
+            "Programming Language :: Python :: 3.8",
+            "License :: OSI Approved :: Apache Software License",
+            "Operating System :: OS Independent"],
+        python_requires='>=3.8',
+        install_requires=["scikit-learn>=1.1.2",
+                        "ninja>=1.10.2.2",
+                        "numba>=0.56"],
+        zip_safe=False,
+        ext_modules=cythonize_extensions(ext_modules),
+        )

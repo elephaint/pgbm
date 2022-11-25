@@ -4,14 +4,46 @@
 
 cimport cython
 from cython.parallel import prange
-
 import numpy as np
+cimport numpy as cnp
+cnp.import_array()
 
-from .common import HISTOGRAM_DTYPE, HISTOGRAM_DTYPE_WITH_VAR
-from .common cimport hist_struct, hist_struct_with_variance
-from .common cimport X_BINNED_DTYPE_C
-from .common cimport G_H_DTYPE_C
+ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
+ctypedef cnp.npy_float32 G_H_DTYPE_C
+ctypedef cnp.npy_float64 Y_DTYPE_C
 
+from .common import Y_DTYPE
+
+HISTOGRAM_DTYPE = np.dtype([
+    ('sum_gradients', Y_DTYPE),  # sum of sample gradients in bin
+    ('sum_hessians', Y_DTYPE),  # sum of sample hessians in bin
+    ('count', np.uint32),  # number of samples in bin
+])
+
+HISTOGRAM_DTYPE_WITH_VAR = np.dtype([
+    ('sum_gradients', Y_DTYPE),  # sum of sample gradients in bin
+    ('sum_hessians', Y_DTYPE),  # sum of sample hessians in bin
+    ('count', np.uint32),  # number of samples in bin
+    ('sum_gradients_squared', Y_DTYPE),  # sum of squared sample gradients in bin
+    ('sum_hessians_squared', Y_DTYPE),  # sum of squared sample hessians in bin
+    ('sum_gradients_hessians', Y_DTYPE)  # sum of product of gradients and hessians in bin
+])
+
+cdef packed struct hist_struct:
+    # Same as histogram dtype but we need a struct to declare views. It needs
+    # to be packed since by default numpy dtypes aren't aligned
+    Y_DTYPE_C sum_gradients
+    Y_DTYPE_C sum_hessians
+    unsigned int count
+
+cdef packed struct hist_struct_with_variance:
+    # Same as hist_struct but with variables to calculate the variances of the leafs.
+    Y_DTYPE_C sum_gradients
+    Y_DTYPE_C sum_hessians
+    unsigned int count
+    Y_DTYPE_C sum_gradients_squared
+    Y_DTYPE_C sum_hessians_squared
+    Y_DTYPE_C sum_gradients_hessians
 
 # Notes:
 # - IN views are read-only, OUT views are write-only

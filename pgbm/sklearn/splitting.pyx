@@ -13,17 +13,51 @@ import numpy as np
 from libc.stdlib cimport malloc, free, qsort
 from libc.string cimport memcpy
 from numpy.math cimport INFINITY
+cimport numpy as cnp
+cnp.import_array()
+ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
+ctypedef cnp.npy_float64 Y_DTYPE_C
+ctypedef cnp.npy_uint32 BITSET_INNER_DTYPE_C
+ctypedef BITSET_INNER_DTYPE_C[8] BITSET_DTYPE_C
 
-from .common cimport X_BINNED_DTYPE_C
-from .common cimport Y_DTYPE_C
-from .common cimport hist_struct, hist_struct_with_variance
-from .common cimport BITSET_INNER_DTYPE_C
-from .common cimport BITSET_DTYPE_C
-from .common cimport MonotonicConstraint
-from ._bitset cimport init_bitset
-from ._bitset cimport set_bitset
-from ._bitset cimport in_bitset
+cdef packed struct hist_struct:
+    # Same as histogram dtype but we need a struct to declare views. It needs
+    # to be packed since by default numpy dtypes aren't aligned
+    Y_DTYPE_C sum_gradients
+    Y_DTYPE_C sum_hessians
+    unsigned int count
 
+cdef packed struct hist_struct_with_variance:
+    # Same as hist_struct but with variables to calculate the variances of the leafs.
+    Y_DTYPE_C sum_gradients
+    Y_DTYPE_C sum_hessians
+    unsigned int count
+    Y_DTYPE_C sum_gradients_squared
+    Y_DTYPE_C sum_hessians_squared
+    Y_DTYPE_C sum_gradients_hessians
+
+cpdef enum MonotonicConstraint:
+    NO_CST = 0
+    POS = 1
+    NEG = -1
+
+cdef inline void init_bitset(BITSET_DTYPE_C bitset) nogil: # OUT
+    cdef:
+        unsigned int i
+
+    for i in range(8):
+        bitset[i] = 0
+
+
+cdef inline void set_bitset(BITSET_DTYPE_C bitset,  # OUT
+                            X_BINNED_DTYPE_C val) nogil:
+    bitset[val // 32] |= (1 << (val % 32))
+
+
+cdef inline unsigned char in_bitset(BITSET_DTYPE_C bitset,
+                                    X_BINNED_DTYPE_C val) nogil:
+
+    return (bitset[val // 32] >> (val % 32)) & 1
 
 cdef struct split_info_struct:
     # Same as the SplitInfo class, but we need a C struct to use it in the

@@ -3,8 +3,10 @@
 from cython.parallel import prange
 from libc.math cimport isnan
 
-from .common cimport X_DTYPE_C, X_BINNED_DTYPE_C
-
+cimport numpy as cnp
+cnp.import_array()
+ctypedef cnp.npy_float64 X_DTYPE_C
+ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
 
 def _map_to_bins(const X_DTYPE_C [:, :] data,
                  list binning_thresholds,
