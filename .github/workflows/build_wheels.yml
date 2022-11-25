@@ -82,8 +82,8 @@ jobs:
                             OPENBLAS_NUM_THREADS=2
           CIBW_BUILD: cp${{ matrix.python }}-${{ matrix.platform_id }}
           CIBW_ARCHS: all
-          CIBW_TEST_REQUIRES: torch
-          CIBW_TEST_REQUIRES_LINUX: torch --extra-index-url https://download.pytorch.org/whl/cpu
+          CIBW_TEST_REQUIRES: torch pytest
+          CIBW_TEST_REQUIRES_LINUX: torch --extra-index-url https://download.pytorch.org/whl/cpu pytest
           CIBW_TEST_COMMAND: bash {project}/.github/scripts/test_wheels.sh {project}
           CIBW_BUILD_VERBOSITY: 1
         run: bash .github/scripts/build_wheels.sh

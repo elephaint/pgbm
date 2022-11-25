@@ -3,4 +3,4 @@
 set -e
 set -x
 
-python $1/tests/test_training.py
+pytest $1/tests/

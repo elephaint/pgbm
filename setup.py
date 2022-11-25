@@ -26,6 +26,7 @@ def cythonize_extensions(extension):
             "initializedcheck": False,
             "nonecheck": False,
             "cdivision": True,
+            "boundscheck": False,
         },
     )
 

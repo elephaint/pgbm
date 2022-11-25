@@ -33,9 +33,6 @@ from torch.distributions import Normal, NegativeBinomial, Poisson, StudentT, Lap
 from torch.utils.cpp_extension import load
 from pathlib import Path
 import pickle
-from sklearn.base import BaseEstimator
-from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
-from sklearn.metrics import r2_score
 #%% Load custom kernel
 current_path = Path(__file__).parent
 if torch.cuda.is_available():
@@ -356,7 +353,7 @@ class DistPGBM(object):
             
             # Save current model checkpoint to current working directory
             if self.checkpoint:
-                self.save(f'{self.cwd}\checkpoint')
+                self.save(f'{self.cwd}/checkpoint')
             
         # Truncate tree arrays
         self.nodes_idx              = self.nodes_idx[:self.best_iteration]
