@@ -3,13 +3,13 @@
 set -e
 set -x
 
-cd ../
+cd ../../
 
 python -m venv test_env
 source test_env/bin/activate
 
-python -m pip install pgbm/dist/*.tar.gz
-
+python -m pip install pgbm/pgbm/dist/*.tar.gz
+python -m pip install numba torch --extra-index-url https://download.pytorch.org/whl/cpu ninja
 # Run the tests on the installed source distribution
 
-python pgbm/tests/test_training.py
+python pgbm/pgbm/tests/test_training.py

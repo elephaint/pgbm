@@ -22,6 +22,6 @@ from pgbm.sklearn import HistGradientBoostingRegressor
 from pgbm.torch import PGBMRegressor
 
 @parametrize_with_checks([HistGradientBoostingRegressor(),
-                        PGBMRegressor()])
+                        PGBMRegressor(verbose=0)])
 def test_sklearn_compatible_estimator(estimator, check):
     check(estimator)
