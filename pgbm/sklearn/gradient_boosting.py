@@ -29,8 +29,8 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn.metrics import check_scoring
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from pgbm.sklearn._gradient_boosting import _update_raw_predictions
-from pgbm.sklearn.common import Y_DTYPE, X_DTYPE, G_H_DTYPE
+from ._gradient_boosting import _update_raw_predictions
+from .common import Y_DTYPE, X_DTYPE, G_H_DTYPE
 
 from .binning import _BinMapper
 from .grower import TreeGrower

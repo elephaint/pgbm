@@ -12,7 +12,7 @@ ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
 ctypedef cnp.npy_float32 G_H_DTYPE_C
 ctypedef cnp.npy_float64 Y_DTYPE_C
 
-from pgbm.sklearn.common import Y_DTYPE
+from .common import Y_DTYPE
 
 HISTOGRAM_DTYPE = np.dtype([
     ('sum_gradients', Y_DTYPE),  # sum of sample gradients in bin

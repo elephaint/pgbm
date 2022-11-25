@@ -2,6 +2,8 @@
 
 set -e
 set -x
-cd tests/
+pwd
+cd ../../
+cd tests
 
-pytest
+pytest 

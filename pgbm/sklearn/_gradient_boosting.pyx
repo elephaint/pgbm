@@ -1,7 +1,7 @@
 # Author: Nicolas Hug
 
 from cython.parallel import prange
-from pgbm.sklearn.common import Y_DTYPE
+from .common import Y_DTYPE
 import numpy as np
 cimport numpy as cnp
 cnp.import_array()

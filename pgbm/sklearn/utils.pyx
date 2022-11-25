@@ -6,7 +6,7 @@ cimport numpy as cnp
 cnp.import_array()
 
 from sklearn.base import is_classifier
-from pgbm.sklearn.binning import _BinMapper
+from .binning import _BinMapper
 ctypedef cnp.npy_float32 G_H_DTYPE_C
 ctypedef cnp.npy_float64 Y_DTYPE_C
 

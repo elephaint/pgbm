@@ -11,19 +11,19 @@ import numpy as np
 from timeit import default_timer as time
 import numbers
 
-from pgbm.sklearn.splitting import Splitter, SplitterWithVariance
-from pgbm.sklearn.histogram import HistogramBuilder, HistogramBuilderWithVariance
-from pgbm.sklearn.predictor import TreePredictor
-from pgbm.sklearn.utils import (
+from .splitting import Splitter, SplitterWithVariance
+from .histogram import HistogramBuilder, HistogramBuilderWithVariance
+from .predictor import TreePredictor
+from .utils import (
     sum_parallel,
     sum_parallel_with_squares,
     sum_parallel_with_squares_two_arrays,
 )
-from pgbm.sklearn.common import PREDICTOR_RECORD_DTYPE
-from pgbm.sklearn.common import X_BITSET_INNER_DTYPE
-from pgbm.sklearn.common import Y_DTYPE
-from pgbm.sklearn.splitting import MonotonicConstraint
-from pgbm.sklearn._bitset import set_raw_bitset_from_binned_bitset
+from .common import PREDICTOR_RECORD_DTYPE
+from .common import X_BITSET_INNER_DTYPE
+from .common import Y_DTYPE
+from .splitting import MonotonicConstraint
+from ._bitset import set_raw_bitset_from_binned_bitset
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 
 
