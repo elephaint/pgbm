@@ -17,6 +17,7 @@
    https://github.com/elephaint/pgbm/blob/main/LICENSE
 
 """
+#%%
 import pytest
 import numpy as np
 from sklearn.utils.estimator_checks import parametrize_with_checks
@@ -28,7 +29,7 @@ from sklearn.datasets import fetch_california_housing
 
 # Load data
 X, y = fetch_california_housing(return_X_y=True)
-
+#%%
 # Estimator checks scikit-learn
 @parametrize_with_checks([HistGradientBoostingRegressor(),
                         PGBMRegressor(verbose=0)])

@@ -6,4 +6,4 @@ pwd
 cd ../../
 cd tests
 
-pytest 
+python -m pytest 

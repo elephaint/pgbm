@@ -13,4 +13,4 @@ python -m pip install pytest numba torch --extra-index-url https://download.pyto
 # Run the tests on the installed source distribution
 
 # python pgbm/pgbm/tests/test_training.py
-pytest pgbm/pgbm/tests/
+python -m pytest pgbm/pgbm/tests/
