@@ -4,11 +4,11 @@ import pytest
 from ..grower import TreeGrower
 from ..common import G_H_DTYPE
 from ..common import X_BINNED_DTYPE
-from ..common import MonotonicConstraint
 from ..splitting import (
     Splitter,
     compute_node_value,
     SplitterWithVariance,
+    MonotonicConstraint,
 )
 from ..histogram import (
     HistogramBuilder,

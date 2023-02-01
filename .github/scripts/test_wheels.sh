@@ -3,7 +3,7 @@
 set -e
 set -x
 pwd
-where pip
+# where pip
 INVENV=$(python -c 'import sys; print ("1" if hasattr(sys, "real_prefix") else "0")')
 # cd ../../
 # cd tests

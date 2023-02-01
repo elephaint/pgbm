@@ -134,7 +134,7 @@ def _normal(y, y_std, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             yhat[j, i] = np.random.normal(y[j], y_std[j])
 
@@ -147,7 +147,7 @@ def _studentt(y, y_std, n_estimates, seed, v=3):
     factor = v / (v - 2)
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             scale = np.sqrt(y_std[j]**2 / factor)
             yhat[j, i] = (np.random.standard_t(v)
@@ -161,7 +161,7 @@ def _laplace(y, y_std, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             scale = np.sqrt(0.5 * y_std[j]**2)
             yhat[j, i] = np.random.laplace(y[j], scale)
@@ -174,7 +174,7 @@ def _logistic(y, y_std, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             scale = np.sqrt((3 * y_std[j]**2) / np.pi**2)
             yhat[j, i] = np.random.logistic(y[j], scale)
@@ -187,11 +187,12 @@ def _lognormal(y, y_std, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
-            loc = np.log(y**2 / np.sqrt(y_std[j]**2 + y[j]**2))
+            loc = np.log(y[j]**2 / np.sqrt(y_std[j]**2 + y[j]**2))
             scale = np.log(1 + y_std[j]**2 / y[j]**2)
-            yhat[j, i] = np.exp(np.random.lognormal(loc, np.sqrt(scale)))
+            yhat_log = np.random.normal(loc, np.sqrt(scale))
+            yhat[j, i] = np.exp(yhat_log)
 
     return yhat.T  
 
@@ -201,7 +202,7 @@ def _gumbel(y, y_std, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             scale = np.sqrt(6 * y_std[j]**2 / np.pi**2)
             loc = y[j] - scale * np.euler_gamma
@@ -215,7 +216,7 @@ def _gamma(y, y_std, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             shape = y[j]**2 / y_std[j]
             scale = y[j] / shape
@@ -229,7 +230,7 @@ def _poisson(y, n_estimates, seed):
     n_samples = y.shape[0]
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
             yhat[j, i] = np.random.poisson(y[j])
 
@@ -239,13 +240,14 @@ def _poisson(y, n_estimates, seed):
       cache=True)
 def _negativebinomial(y, y_std, n_estimates, seed):   
     n_samples = y.shape[0]
+    eps = 1.0e-15
     yhat = np.zeros((n_samples, n_estimates), dtype=Y_DTYPE)    
     for j in prange(n_samples):
-        np.random.seed(seed)
+        np.random.seed(seed + j)
         for i in range(n_estimates):
-            scale = np.maximum(y[j] + 1e-15, y_std[j])
-            p = np.clip(y[j] / scale, 1e-15, 1 - 1e-15)
-            n = np.clip(-(y[j]**2) / (y[j] - scale), 1e-15, None)
-            yhat[j, i] = np.random.negative_binomial(n, p)
+            p = np.minimum(np.maximum(y[j] * y_std[j]**2, eps), 1 - eps)
+            n = (p * y[j]) / (1 - p)
+            Y = np.random.gamma(n, (1.0 - p) / p)
+            yhat[j, i] = np.random.poisson(Y)
 
-    return yhat.T 
+    return yhat.T
