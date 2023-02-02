@@ -4,7 +4,7 @@ import pytest
 from numpy.testing import assert_allclose
 from numpy.testing import assert_array_equal
 
-from ..histogram import (
+from pgbm.sklearn.histogram import (
     _build_histogram_naive,
     _build_histogram,
     _build_histogram_no_hessian,
@@ -18,12 +18,12 @@ from ..histogram import (
     _build_histogram_root_with_variance,
     _subtract_histograms_with_variance,
 )
-from ..common import (
+from pgbm.sklearn.common import (
     HISTOGRAM_DTYPE,
     HISTOGRAM_DTYPE_WITH_VAR,
 )
-from ..common import G_H_DTYPE
-from ..common import X_BINNED_DTYPE
+from pgbm.sklearn.common import G_H_DTYPE
+from pgbm.sklearn.common import X_BINNED_DTYPE
 
 
 @pytest.mark.parametrize(

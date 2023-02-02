@@ -21,10 +21,10 @@ from sklearn.dummy import DummyRegressor
 from sklearn.exceptions import NotFittedError
 from sklearn.compose import make_column_transformer
 
-from .. import HistGradientBoostingRegressor
-from ..grower import TreeGrower
-from ..binning import _BinMapper
-from ..common import G_H_DTYPE
+from pgbm.sklearn import HistGradientBoostingRegressor
+from pgbm.sklearn.grower import TreeGrower
+from pgbm.sklearn.binning import _BinMapper
+from pgbm.sklearn.common import G_H_DTYPE
 from sklearn.utils import shuffle
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 

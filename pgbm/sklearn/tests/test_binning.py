@@ -2,14 +2,14 @@ import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import pytest
 
-from ..binning import (
+from pgbm.sklearn.binning import (
     _BinMapper,
     _find_binning_thresholds,
     _map_to_bins,
 )
-from ..common import X_DTYPE
-from ..common import X_BINNED_DTYPE
-from ..common import ALMOST_INF
+from pgbm.sklearn.common import X_DTYPE
+from pgbm.sklearn.common import X_BINNED_DTYPE
+from pgbm.sklearn.common import ALMOST_INF
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 
 n_threads = _openmp_effective_n_threads()

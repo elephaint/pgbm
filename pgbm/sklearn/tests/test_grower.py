@@ -5,13 +5,13 @@ from numpy.testing import assert_array_equal
 from numpy.testing import assert_allclose
 
 from sklearn.preprocessing import OneHotEncoder
-from ..grower import TreeGrower
-from ..binning import _BinMapper
-from ..common import X_BINNED_DTYPE
-from ..common import X_DTYPE
-from ..common import Y_DTYPE
-from ..common import G_H_DTYPE
-from ..common import X_BITSET_INNER_DTYPE
+from pgbm.sklearn.grower import TreeGrower
+from pgbm.sklearn.binning import _BinMapper
+from pgbm.sklearn.common import X_BINNED_DTYPE
+from pgbm.sklearn.common import X_DTYPE
+from pgbm.sklearn.common import Y_DTYPE
+from pgbm.sklearn.common import G_H_DTYPE
+from pgbm.sklearn.common import X_BITSET_INNER_DTYPE
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 
 n_threads = _openmp_effective_n_threads()

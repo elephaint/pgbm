@@ -1,1 +1,4 @@
 recursive-include pgbm *.cpp *.cu *.pyx
+recursive-include pgbm/sklearn/tests *.py
+recursive-include pgbm/torch/tests *.py
+global-exclude *.pyc

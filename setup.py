@@ -64,7 +64,7 @@ if __name__ == "__main__":
         long_description=long_description,
         long_description_content_type="text/markdown",
         url="https://github.com/elephaint/pgbm",
-        packages=["pgbm.sklearn", "pgbm.torch"],
+        packages=["pgbm"],
         include_package_data=True,
         classifiers=[
             "Programming Language :: Python :: 3.8",

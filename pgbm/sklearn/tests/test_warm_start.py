@@ -7,7 +7,7 @@ import pytest
 from sklearn.base import clone
 from sklearn.datasets import make_classification, make_regression
 
-from .. import HistGradientBoostingRegressor
+from pgbm.sklearn import HistGradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import check_scoring
 

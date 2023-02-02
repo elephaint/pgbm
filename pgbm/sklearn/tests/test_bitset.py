@@ -2,12 +2,12 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose
 
-from .._bitset import (
+from pgbm.sklearn._bitset import (
     set_bitset_memoryview,
     in_bitset_memoryview,
     set_raw_bitset_from_binned_bitset,
 )
-from ..common import X_DTYPE
+from pgbm.sklearn.common import X_DTYPE
 
 
 @pytest.mark.parametrize(

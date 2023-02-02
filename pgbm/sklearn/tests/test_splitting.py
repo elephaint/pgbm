@@ -2,19 +2,19 @@ import numpy as np
 import pytest
 from numpy.testing import assert_array_equal
 
-from ..common import (
+from pgbm.sklearn.common import (
     HISTOGRAM_DTYPE,
     HISTOGRAM_DTYPE_WITH_VAR,
 )
-from ..common import G_H_DTYPE
-from ..common import X_BINNED_DTYPE
-from ..splitting import (
+from pgbm.sklearn.common import G_H_DTYPE
+from pgbm.sklearn.common import X_BINNED_DTYPE
+from pgbm.sklearn.splitting import (
     Splitter,
     compute_node_value,
     SplitterWithVariance,
     MonotonicConstraint
 )
-from ..histogram import (
+from pgbm.sklearn.histogram import (
     HistogramBuilder,
     HistogramBuilderWithVariance,
 )

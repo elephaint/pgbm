@@ -4,10 +4,10 @@ from sklearn.datasets import make_classification, make_regression
 import numpy as np
 import pytest
 
-from .. import HistGradientBoostingRegressor
+from pgbm.sklearn import HistGradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingClassifier
-from ..binning import _BinMapper
-from ..utils import get_equivalent_estimator
+from pgbm.sklearn.binning import _BinMapper
+from pgbm.sklearn.utils import get_equivalent_estimator
 
 
 @pytest.mark.parametrize("seed", range(5))

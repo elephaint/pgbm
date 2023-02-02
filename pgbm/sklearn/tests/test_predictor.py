@@ -5,10 +5,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 import pytest
 
-from ..binning import _BinMapper
-from ..grower import TreeGrower
-from ..predictor import TreePredictor
-from ..common import (
+from pgbm.sklearn.binning import _BinMapper
+from pgbm.sklearn.grower import TreeGrower
+from pgbm.sklearn.predictor import TreePredictor
+from pgbm.sklearn.common import (
     G_H_DTYPE,
     PREDICTOR_RECORD_DTYPE,
     ALMOST_INF,
@@ -16,7 +16,7 @@ from ..common import (
     X_BITSET_INNER_DTYPE,
     X_DTYPE,
 )
-from .._bitset import (
+from pgbm.sklearn._bitset import (
     set_bitset_memoryview,
     set_raw_bitset_from_binned_bitset,
 )

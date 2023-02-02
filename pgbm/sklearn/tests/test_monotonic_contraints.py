@@ -1,20 +1,20 @@
 import numpy as np
 import pytest
 
-from ..grower import TreeGrower
-from ..common import G_H_DTYPE
-from ..common import X_BINNED_DTYPE
-from ..splitting import (
+from pgbm.sklearn.grower import TreeGrower
+from pgbm.sklearn.common import G_H_DTYPE
+from pgbm.sklearn.common import X_BINNED_DTYPE
+from pgbm.sklearn.splitting import (
     Splitter,
     compute_node_value,
     SplitterWithVariance,
     MonotonicConstraint,
 )
-from ..histogram import (
+from pgbm.sklearn.histogram import (
     HistogramBuilder,
     HistogramBuilderWithVariance,
 )
-from .. import HistGradientBoostingRegressor
+from pgbm.sklearn import HistGradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 
