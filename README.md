@@ -9,6 +9,7 @@ _Probabilistic Gradient Boosting Machines_ (PGBM) is a probabilistic gradient bo
 * Native GPU-acceleration. ([example](https://github.com/elephaint/pgbm/blob/main/examples/torch/example02_housing_gpu.py))
 * Distributed training for CPU and GPU, across multiple nodes. ([examples](https://github.com/elephaint/pgbm/blob/main/examples/torch_dist/))
 * Ability to optimize probabilistic estimates after training for a set of common distributions, without retraining the model. ([example](https://github.com/elephaint/pgbm/blob/main/examples/torch/example07_optimizeddistribution.py))
+* Full integration with scikit-learn through a fork of HistGradientBoostingRegressor ([examples](https://github.com/elephaint/pgbm/tree/main/examples/sklearn))
 
 It is aimed at users interested in solving large-scale tabular probabilistic regression problems, such as probabilistic time series forecasting. 
 
