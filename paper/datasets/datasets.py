@@ -17,7 +17,7 @@
 
 """
 #%% Import packages
-from sklearn.datasets import load_boston
+from sklearn.datasets import fetch_california_housing
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import requests, zipfile, io
@@ -25,8 +25,9 @@ import numpy as np
 from pathlib import Path
 #%% Load data
 def get_dataset(dataset):
-    location = 'datasets/'
-    datasets = {'boston': lambda: load_boston(return_X_y=True),
+    location = Path(__file__).parent
+    # location = 'datasets/'
+    datasets = {'housing': lambda: fetch_california_housing(return_X_y=True),
                 'concrete': lambda: pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/concrete/compressive/Concrete_Data.xls'),
                 'energy': lambda: pd.read_excel('https://archive.ics.uci.edu/ml/machine-learning-databases/00242/ENB2012_data.xlsx').iloc[:, :-2],
                 'kin8nm': lambda: pd.read_csv('https://www.openml.org/data/get_csv/3626/dataset_2175_kin8nm.arff'),
@@ -35,30 +36,30 @@ def get_dataset(dataset):
                 'yacht': lambda: pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00243/yacht_hydrodynamics.data', header=None, delim_whitespace=True)}
     if dataset == 'higgs':
         # Pre-download Higgs from https://archive.ics.uci.edu/ml/datasets/HIGGS, extract HIGGS.csv to pgbm/datasets/, load in Python and save as higgs.feather
-        data = pd.read_feather(f'{location}higgs.feather')              
+        data = pd.read_feather(location.joinpath('higgs.feather'))              
     elif dataset == 'msd':
-        if Path(f'{location}msd.feather').is_file():
-            data = pd.read_feather(f'{location}msd.feather')
+        if (location.joinpath('msd.feather')).is_file():
+            data = pd.read_feather(location.joinpath('msd.feather'))
         else:
             print('Downloading MSD dataset...')
             data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00203/YearPredictionMSD.txt.zip', header=None).iloc[:, ::-1]
             data.columns = data.columns.astype('str')
-            data.to_feather(f'{location}msd.feather')
-    elif dataset == 'boston':
+            data.to_feather(location.joinpath('msd.feather'))
+    elif dataset == 'housing':
         X, y = datasets[dataset]()
         data = pd.DataFrame(np.concatenate((X, y[:, None]), axis=1))
     elif dataset == 'naval':
         file = requests.get('http://archive.ics.uci.edu/ml/machine-learning-databases/00316/UCI%20CBM%20Dataset.zip', stream=True)
         z = zipfile.ZipFile(io.BytesIO(file.content))
         z.infolist()[5].filename = 'naval.txt'
-        z.extract(z.infolist()[5], path=f'{location}')
-        data = pd.read_csv(f'{location}naval.txt', delim_whitespace=True, header=None).iloc[:, :-1].drop(columns = [8, 11])
+        z.extract(z.infolist()[5], path=str(location))
+        data = pd.read_csv(location.joinpath('naval.txt'), delim_whitespace=True, header=None).iloc[:, :-1].drop(columns = [8, 11])
     elif dataset == 'power':
         file = requests.get('https://archive.ics.uci.edu/ml/machine-learning-databases/00294/CCPP.zip', stream=True)
         z = zipfile.ZipFile(io.BytesIO(file.content))
         z.infolist()[2].filename = 'power.xlsx'
-        z.extract(z.infolist()[2], path=f'{location}')
-        data = pd.read_excel(f'{location}power.xlsx')
+        z.extract(z.infolist()[2], path=str(location))
+        data = pd.read_excel(location.joinpath('power.xlsx'))
     else:
         data = datasets[dataset]()
     

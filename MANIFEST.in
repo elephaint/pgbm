@@ -1,5 +1,6 @@
-include src/pgbm/splitgain_cpu.cpp
-include src/pgbm/splitgain_cuda.cpp
-include src/pgbm/splitgain_kernel.cu
-include src/pgbm_dist/parallelsum.cpp
-include src/pgbm_dist/parallelsum_kernel.cu
+recursive-include pgbm *.cpp *.cu *.pyx
+recursive-include pgbm/sklearn *.py
+recursive-include pgbm/torch *.py
+recursive-include pgbm/sklearn/tests *.py
+recursive-include pgbm/torch/tests *.py
+global-exclude *.pyc

@@ -20,6 +20,7 @@ parts/
 sdist/
 var/
 wheels/
+wheelhouse/
 pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
@@ -138,7 +139,6 @@ notes/
 *.csv
 *.model
 *.h5
-/tests
 /benchmarks
 *.feather
 *.parquet
@@ -146,3 +146,4 @@ notes/
 /src/pgbm_jax
 /paper/datasets/naval.txt
 /src/pgbm/nsight
+/pgbm/sklearn/*.c
