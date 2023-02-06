@@ -20,10 +20,10 @@ from pgbm.sklearn import HistGradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_california_housing
 X, y = fetch_california_housing(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=0)
-model = HistGradientBoostingRegressor(random_state=0).fit(X_train, y_train) 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+model = HistGradientBoostingRegressor().fit(X_train, y_train) 
 yhat_test, yhat_test_std = model.predict(X_test, return_std=True)
-yhat_dist = model.sample(yhat_test, yhat_test_std, n_estimates=1000, random_state=0)
+yhat_dist = model.sample(yhat_test, yhat_test_std, n_estimates=1000)
 ```
 
 ### Installation ###
@@ -31,7 +31,7 @@ yhat_dist = model.sample(yhat_test, yhat_test_std, n_estimates=1000, random_stat
 See [Installation](https://pgbm.readthedocs.io/en/latest/installation.html) section in our [docs](https://pgbm.readthedocs.io/en/latest/index.html).
 
 ### Support ###
-In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement), except that it is required to explicitly define a loss function and loss metric.
+In general, PGBM works similar to existing gradient boosting packages such as LightGBM or xgboost (and it should be possible to more or less use it as a drop-in replacement).
 
 * Read the docs for an overview of [hyperparameters](https://pgbm.readthedocs.io/en/latest/parameters.html) and a [function reference](https://pgbm.readthedocs.io/en/latest/function_reference.html).
 * See the [examples](https://github.com/elephaint/pgbm/tree/main/examples) folder for examples. 
