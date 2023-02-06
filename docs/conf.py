@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath('../'))
 # -- Project information -----------------------------------------------------
 
 project = 'PGBM'
-copyright = '2021, Olivier Sprangers, AirLab'
+copyright = '2021-2023, Olivier Sprangers, AirLab'
 author = 'Olivier Sprangers'
 
 # The full version, including alpha/beta/rc tags
