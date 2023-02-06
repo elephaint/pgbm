@@ -119,10 +119,3 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: dist/*.tar.gz
-  
-  upload_pypi:
-    name: Upload to PyPi
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
-    uses: pypa/gh-action-pypi-publish@v1.6.4
-    with:
-      password: ${{ secrets.PYPI_API_TOKEN }}
