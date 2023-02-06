@@ -14,16 +14,17 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 
 For more details, [read the docs](https://pgbm.readthedocs.io/en/latest/index.html) or [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
-Below a simple example using our sklearn wrapper:
+Below a simple example:
 ```
-from pgbm import PGBMRegressor
+from pgbm.sklearn import HistGradientBoostingRegressor, crps_ensemble
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_california_housing
 X, y = fetch_california_housing(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
-model = PGBMRegressor().fit(X_train, y_train)  
-yhat_point = model.predict(X_test)
-yhat_dist = model.predict_dist(X_test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=0)
+model = HistGradientBoostingRegressor(random_state=0).fit(X_train, y_train) 
+yhat_point, yhat_point_std = model.predict(X_test, return_std=True)
+yhat_dist = model.sample(yhat_point, yhat_point_std, n_estimates=1000, random_state=0)
 ```
 
 ### Installation ###
