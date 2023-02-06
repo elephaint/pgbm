@@ -20,18 +20,16 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 ## Python API ##
 We expose PGBM as a Python module based on two backends: Torch and Scikit-learn. To import the base PGBM class:
 ```
+# Torch backend (2 estimators)
 from pgbm.torch import PGBM # Torch backend
+from pgbm.torch import PGBMRegressor # Torch backend, scikit-learn compatible estimator
+
+# Scikit-learn backend
 from pgbm.sklearn import HistGradientBoostingRegressor # Scikit-learn backend
 ```
 Both backends are NOT compatible with each other, meaning that a model trained and saved using one backend can NOT be loaded for continual training or predictions in the other backend.
 
-For details on the `PGBM` or `HistGradientBoostingRegressor` class, we refer to the [Function reference](./function_reference.rst).
-
-## Scikit-learn compatibility ##
-For the Torch-backend, we provide a Scikit-learn compatible wrapper as follows:
-```
-from pgbm.torch import PGBMRegressor # Torch backend
-```
+For details on the `PGBM`, `PGBMRegressor` or `HistGradientBoostingRegressor` class, we refer to the [Function reference](./function_reference.rst).
 
 Our Scikit-learn backend is a modified version of [HistGradientBoostingRegressor](https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.HistGradientBoostingRegressor.html) and thus should be fully compatible with scikit-learn.
 
@@ -40,6 +38,7 @@ The table below lists the features per API, which may help you decide which API 
 
 | Feature         | pgbm.torch.PGBM | pgbm.sklearn.HistGradientBoostingRegressor |
 |-----------------|:---------------:|:------------------------------------------:|
+| Backend         |      Torch      |               Scikit-learn                 |
 | CPU training    |      Yes        |                   Yes                      |
 | GPU training    |      Yes        |                   No                       |
 | Sample bagging  |      Yes        |                   No                       |

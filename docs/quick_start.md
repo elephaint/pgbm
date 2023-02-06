@@ -1,8 +1,10 @@
 # Quick Start #
 
-First, [install PGBM](./installation.md).
+First, [install PGBM](./installation.md). 
 
-## Training a model (Torch backend) ##
+Don't care about GPU training? Use the [Scikit-learn backend](#training-a-model-on-scikit-learn-backend), as it is faster when using CPU.
+
+## Training a model on Torch backend
 For example, for the California Housing dataset:
 ```
 from pgbm.torch import PGBMRegressor
@@ -42,9 +44,9 @@ plt.legend(ncol=3)
 ```
 which should produce something similar to the following:
 ![PGBM Quick Start - California Housing Probabilistic Predictions](./figures/quick_start_firstexample.png)
-As you can see, the probabilistic forecast covers most of the actual observed values, which is typically desired. Moreover, the indicated forecast range varies per test point, indicating that the model has learned to produce different variances for various samples. Again, this is typically desired behaviour when forecasting. We can improve on this result through [hyperparameter tuning](./parameters_torch.html#parameter-tuning). 
+As you can see, the probabilistic forecast covers most of the actual observed values, which is typically desired. Moreover, the indicated forecast range varies per test point, indicating that the model has learned to produce different variances for various samples. Again, this is typically desired behaviour when forecasting. We can improve on this result through [hyperparameter tuning](./parameters_torch.md#parameter-tuning). 
 
-## Training a model (Scikit-learn backend) ##
+## Training a model on scikit-learn backend
 For example, for the California Housing dataset:
 ```
 from pgbm.sklearn import HistGradientBoostingRegressor, crps_ensemble
