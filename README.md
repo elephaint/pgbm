@@ -27,6 +27,8 @@ yhat_test, yhat_test_std = model.predict(X_test, return_std=True)
 yhat_dist = model.sample(yhat_test, yhat_test_std, n_estimates=1000)
 ```
 
+See also [this example](https://github.com/elephaint/pgbm/blob/main/examples/sklearn/example14_probregression.py) where we compare PGBM to standard gradient boosting quantile regression methods, demonstrating that we can achieve comparable or better probabilistic performance whilst only training a single model.
+
 ### Installation ###
 
 See [Installation](https://pgbm.readthedocs.io/en/latest/installation.html) section in our [docs](https://pgbm.readthedocs.io/en/latest/index.html).
