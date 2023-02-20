@@ -1,3 +1,7 @@
+## 2.1.0 ##
+* Added support for missing values in Torch backend
+* Fixed documentation not rendering properly
+
 ## 2.0.0 ##
 * Added `HistGradientBoostingRegressor`, a fork of scikit-learn's version that allows to use PGBM whilst being fully compatible with scikit-learn
 * Deprecated `pgbm_nb` in favor of `HistGradientBoostingRegressor`. 
