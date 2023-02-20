@@ -45,7 +45,7 @@ The table below lists the features per API, which may help you decide which API 
 | Feature bagging |      Yes        |                   No                       |
 | Monotone cst    |      Yes        |                   Yes                      |
 | Categorical val |      No         |                   Yes                      |
-| Missing values  |      No         |                   Yes                      |
+| Missing values  |      Yes        |                   Yes                      |
 | Checkpointing   |      Yes        |                   Yes                      |
 | Autodiff        |      Yes        |                   No                       |
 
@@ -56,6 +56,6 @@ Description of features:
 * Feature bagging: if we can train on a subsample of the features of the dataset. This may improve model accuracy and speeds up training.
 * Monotone cst: if we can set monotone constraints per feature, using positive, negative or neutral constraints.
 * Categorical val: if the model can natively handle categorical data.
-* Missing values: if the model can natively handle missing values. 
+* Missing values: if the model can natively handle missing values (defined as NaNs). 
 * Checkpointing: if we can train the model, save it, and continue training later on (a.k.a., 'warm-start').
 * Autodiff: if we can supply a differentiable loss function for which we use autodifferentiation to determine the gradient and hessian.
