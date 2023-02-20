@@ -1020,14 +1020,16 @@ def _predict_forest_mu(X: torch.Tensor, nodes_idx: torch.Tensor, nodes_split_bin
 def _create_feature_bins(X: torch.Tensor, max_bin: int = 256):
     # Create array that contains the bins
     bins = torch.zeros((X.shape[1], max_bin), device=X.device)
-    quantiles = torch.linspace(0, 1, max_bin, device=X.device)
+    quantiles = torch.linspace(0, 1, max_bin - 1, device=X.device)
     # For each feature, create max_bins based on frequency bins. 
     for i in range(X.shape[1]):
         xs = X[:, i]   
-        current_bin = torch.unique(torch.quantile(xs, quantiles))
-        # A bit inefficiency created here... some features usually have less than max_bin values (e.g. 1/0 indicator features). 
-        bins[i, :current_bin.shape[0]] = current_bin
-        bins[i, current_bin.shape[0]:] = current_bin.max()
+        current_bin = torch.unique(torch.nanquantile(xs, quantiles))
+        # First bin is the NaN bin. Then, the rest of the bins follow
+        # A bit inefficiency created here... some features usually have less than max_bin values 
+        bins[i, 0] = current_bin[0] - 1.0e-6
+        bins[i, 1:current_bin.shape[0] + 1] = current_bin
+        bins[i, current_bin.shape[0] + 1:] = current_bin.max()
         
     return bins
 
