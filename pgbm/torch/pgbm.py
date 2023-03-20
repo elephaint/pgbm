@@ -1434,6 +1434,7 @@ class PGBMRegressor(BaseEstimator):
             "_xfail_checks": {
                 "check_sample_weights_invariance": "This test gives error due to incorrect rtol setting in sklearn's estimator testing package",
             },
+            "allow_nan":True
         }
     
     def fit(self, X, y, eval_set=None, sample_weight=None, eval_sample_weight=None,
