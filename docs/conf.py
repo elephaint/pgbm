@@ -26,7 +26,7 @@ copyright = '2021-2023, Olivier Sprangers, AirLab'
 author = 'Olivier Sprangers'
 
 # The full version, including alpha/beta/rc tags
-release = '2.1'
+release = '2.1.1'
 
 
 # -- General configuration ---------------------------------------------------

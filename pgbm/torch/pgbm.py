@@ -1472,7 +1472,7 @@ class PGBMRegressor(BaseEstimator):
         # Set estimator type
         self._estimator_type = "regressor"
         # Check that X and y have correct shape and convert to float32
-        X, y = check_X_y(X, y)
+        X, y = check_X_y(X, y, force_all_finite='allow-nan')
         X, y = X.astype(np.float32), y.astype(np.float32)
         self.n_features_in_ = X.shape[1]
         if X.shape[0] == 1:
@@ -1480,7 +1480,7 @@ class PGBMRegressor(BaseEstimator):
         # Check eval set
         if eval_set is not None:
             X_valid, y_valid = eval_set[0], eval_set[1]
-            X_valid, y_valid = check_X_y(X_valid, y_valid)
+            X_valid, y_valid = check_X_y(X_valid, y_valid, force_all_finite='allow-nan')
             X_valid, y_valid = X_valid.astype(np.float32), y_valid.astype(np.float32)
             eval_set = (X_valid, y_valid)
 
@@ -1590,7 +1590,7 @@ class PGBMRegressor(BaseEstimator):
 			r2_score = model.score(X_test, y_test)       
         """        
         # Checks
-        X, y = check_X_y(X, y)
+        X, y = check_X_y(X, y, force_all_finite='allow-nan')
         X, y = X.astype(np.float32), y.astype(np.float32)
         # Make prediction
         yhat = self.predict(X, parallel)

@@ -1,3 +1,6 @@
+## 2.1.1 ##
+* Fixed bug in missing values in scikit-learn wrapper for Torch backend
+
 ## 2.1.0 ##
 * Added support for missing values in Torch backend
 * Fixed documentation not rendering properly

@@ -49,3 +49,12 @@ def test_train_housing_torch(X, y):
     crps_round = np.round(crps, 2)
     assert rmse_round == 0.47
     assert crps_round == 0.24
+
+@pytest.mark.parametrize("X, y", [(X, y)])
+def test_nans(X, y):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=0)
+    # Add nans
+    nans = np.zeros([X_train.shape[0],1])
+    nans[:,:] = np.nan
+    X_train = np.append(X_train, nans, axis=1)
+    model = PGBMRegressor().fit(X_train, y_train)  

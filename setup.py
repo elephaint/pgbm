@@ -57,7 +57,7 @@ for extension in extensions:
 if __name__ == "__main__":
     setup(
         name="pgbm",
-        version="2.1.0",
+        version="2.1.1",
         description="Probabilistic Gradient Boosting Machines",
         author="Olivier Sprangers",
         author_email="o.r.sprangers@uva.nl",
