@@ -1563,7 +1563,7 @@ class PGBMRegressor(BaseEstimator):
         
         """         
         check_is_fitted(self)
-        X = check_array(X)
+        X = check_array(X, force_all_finite='allow-nan')
         X = X.astype(np.float32)
         
         return self.learner_.predict(X, parallel).cpu().numpy()
@@ -1631,7 +1631,7 @@ class PGBMRegressor(BaseEstimator):
         
         """            
         check_is_fitted(self)
-        X = check_array(X)
+        X = check_array(X, force_all_finite='allow-nan')
         X = X.astype(np.float32)
         
         if output_sample_statistics:
