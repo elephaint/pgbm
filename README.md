@@ -16,10 +16,11 @@ It is aimed at users interested in solving large-scale tabular probabilistic reg
 For more details, [read the docs](https://pgbm.readthedocs.io/en/latest/index.html) or [our paper](https://arxiv.org/abs/2106.01682) or check out the [examples](https://github.com/elephaint/pgbm/tree/main/examples).
 
 Below a simple example to generate 1000 estimates for each of our test points:
-```
+```py
 from pgbm.sklearn import HistGradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_california_housing
+
 X, y = fetch_california_housing(return_X_y=True)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 model = HistGradientBoostingRegressor().fit(X_train, y_train) 
