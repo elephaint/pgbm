@@ -1086,7 +1086,7 @@ cdef class Splitter:
             return
 
         qsort(cat_infos, n_used_bins, sizeof(categorical_info),
-              compare_cat_infos)
+              &compare_cat_infos)
 
         loss_current_node = _loss_from_value(value, sum_gradients)
 
@@ -2152,7 +2152,7 @@ cdef class SplitterWithVariance:
             return
 
         qsort(cat_infos, n_used_bins, sizeof(categorical_info),
-              compare_cat_infos)
+              &compare_cat_infos)
 
         loss_current_node = _loss_from_value(value, sum_gradients)
 
@@ -2269,7 +2269,7 @@ cdef class SplitterWithVariance:
 
         free(cat_infos)
 
-cdef int compare_cat_infos(const void * a, const void * b) nogil:
+cdef int compare_cat_infos(const void * a, const void * b) noexcept nogil:
     return -1 if (<categorical_info *>a).value < (<categorical_info *>b).value else 1
 
 cdef inline Y_DTYPE_C _split_gain(
