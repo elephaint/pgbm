@@ -10,9 +10,10 @@
 cimport cython
 from cython.parallel import prange
 import numpy as np
+from libc.math cimport INFINITY
 from libc.stdlib cimport malloc, free, qsort
 from libc.string cimport memcpy
-from numpy.math cimport INFINITY
+
 cimport numpy as cnp
 cnp.import_array()
 ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
@@ -708,15 +709,15 @@ cdef class Splitter:
         free(split_infos)
         return out
 
-    cdef unsigned int _find_best_feature_to_split_helper(
+    cdef int _find_best_feature_to_split_helper(
         self,
         split_info_struct * split_infos,  # IN
         int n_allowed_features,
-    ) nogil:
+    ) noexcept nogil:
         """Return the index of split_infos with the best feature split."""
         cdef:
-            unsigned int split_info_idx
-            unsigned int best_split_info_idx = 0
+            int split_info_idx
+            int best_split_info_idx = 0
 
         for split_info_idx in range(1, n_allowed_features):
             if (split_infos[split_info_idx].gain > split_infos[best_split_info_idx].gain):
@@ -735,7 +736,7 @@ cdef class Splitter:
             signed char monotonic_cst,
             Y_DTYPE_C lower_bound,
             Y_DTYPE_C upper_bound,
-            split_info_struct * split_info) nogil:  # OUT
+            split_info_struct * split_info) noexcept nogil:  # OUT
         """Find best bin to split on for a given feature.
 
         Splits that do not satisfy the splitting constraints
@@ -851,7 +852,7 @@ cdef class Splitter:
             signed char monotonic_cst,
             Y_DTYPE_C lower_bound,
             Y_DTYPE_C upper_bound,
-            split_info_struct * split_info) nogil:  # OUT
+            split_info_struct * split_info) noexcept nogil:  # OUT
         """Find best bin to split on for a given feature.
 
         Splits that do not satisfy the splitting constraints
@@ -967,7 +968,7 @@ cdef class Splitter:
             char monotonic_cst,
             Y_DTYPE_C lower_bound,
             Y_DTYPE_C upper_bound,
-            split_info_struct * split_info) nogil:  # OUT
+            split_info_struct * split_info) noexcept nogil:  # OUT
         """Find best split for categorical features.
 
         Categories are first sorted according to their variance, and then
@@ -1086,7 +1087,7 @@ cdef class Splitter:
             return
 
         qsort(cat_infos, n_used_bins, sizeof(categorical_info),
-              &compare_cat_infos)
+              compare_cat_infos)
 
         loss_current_node = _loss_from_value(value, sum_gradients)
 
@@ -1106,7 +1107,7 @@ cdef class Splitter:
 
             for i in range(middle):
                 sorted_cat_idx = i if direction == 1 else n_used_bins - 1 - i
-                bin_idx = cat_infos[sorted_cat_idx].bin_idx;
+                bin_idx = cat_infos[sorted_cat_idx].bin_idx
 
                 n_samples_left += feature_hist[bin_idx].count
                 n_samples_right = n_samples - n_samples_left
@@ -1663,15 +1664,15 @@ cdef class SplitterWithVariance:
         free(split_infos)
         return out
 
-    cdef unsigned int _find_best_feature_to_split_helper(
+    cdef int _find_best_feature_to_split_helper(
         self,
         split_info_struct_with_variance * split_infos,  # IN
         int n_allowed_features,
-    ) nogil:
+    ) noexcept nogil:
         """Return the index of split_infos with the best feature split."""
         cdef:
-            unsigned int split_info_idx
-            unsigned int best_split_info_idx = 0
+            int split_info_idx
+            int best_split_info_idx = 0
 
         for split_info_idx in range(1, n_allowed_features):
             if (split_infos[split_info_idx].gain > split_infos[best_split_info_idx].gain):
@@ -1693,7 +1694,7 @@ cdef class SplitterWithVariance:
             signed char monotonic_cst,
             Y_DTYPE_C lower_bound,
             Y_DTYPE_C upper_bound,
-            split_info_struct_with_variance * split_info) nogil:  # OUT
+            split_info_struct_with_variance * split_info) noexcept nogil:  # OUT
         """Find best bin to split on for a given feature.
 
         Splits that do not satisfy the splitting constraints
@@ -1847,7 +1848,7 @@ cdef class SplitterWithVariance:
             signed char monotonic_cst,
             Y_DTYPE_C lower_bound,
             Y_DTYPE_C upper_bound,
-            split_info_struct_with_variance * split_info) nogil:  # OUT
+            split_info_struct_with_variance * split_info) noexcept nogil:  # OUT
         """Find best bin to split on for a given feature.
 
         Splits that do not satisfy the splitting constraints
@@ -2004,7 +2005,7 @@ cdef class SplitterWithVariance:
             char monotonic_cst,
             Y_DTYPE_C lower_bound,
             Y_DTYPE_C upper_bound,
-            split_info_struct_with_variance * split_info) nogil:  # OUT
+            split_info_struct_with_variance * split_info) noexcept nogil:  # OUT
         """Find best split for categorical features.
 
         Categories are first sorted according to their variance, and then
@@ -2281,7 +2282,7 @@ cdef inline Y_DTYPE_C _split_gain(
         signed char monotonic_cst,
         Y_DTYPE_C lower_bound,
         Y_DTYPE_C upper_bound,
-        Y_DTYPE_C l2_regularization) nogil:
+        Y_DTYPE_C l2_regularization) noexcept nogil:
     """Loss reduction
 
     Compute the reduction in loss after taking a split, compared to keeping
@@ -2323,7 +2324,7 @@ cdef inline Y_DTYPE_C _split_gain(
 
 cdef inline Y_DTYPE_C _loss_from_value(
         Y_DTYPE_C value,
-        Y_DTYPE_C sum_gradient) nogil:
+        Y_DTYPE_C sum_gradient) noexcept nogil:
     """Return loss of a node from its (bounded) value
 
     See Equation 6 of:
@@ -2338,7 +2339,7 @@ cdef inline unsigned char sample_goes_left(
         X_BINNED_DTYPE_C split_bin_idx,
         X_BINNED_DTYPE_C bin_value,
         unsigned char is_categorical,
-        BITSET_DTYPE_C left_cat_bitset) nogil:
+        BITSET_DTYPE_C left_cat_bitset) noexcept nogil:
     """Helper to decide whether sample should go to left or right child."""
 
     if is_categorical:
@@ -2360,7 +2361,7 @@ cpdef inline Y_DTYPE_C compute_node_value(
         Y_DTYPE_C sum_hessian,
         Y_DTYPE_C lower_bound,
         Y_DTYPE_C upper_bound,
-        Y_DTYPE_C l2_regularization) nogil:
+        Y_DTYPE_C l2_regularization) noexcept nogil:
     """Compute a node's value.
 
     The value is capped in the [lower_bound, upper_bound] interval to respect
@@ -2392,7 +2393,7 @@ cpdef inline (Y_DTYPE_C, Y_DTYPE_C)  compute_node_value_variance(
         Y_DTYPE_C n_samples,
         Y_DTYPE_C lower_bound,
         Y_DTYPE_C upper_bound,
-        Y_DTYPE_C l2_regularization) nogil:
+        Y_DTYPE_C l2_regularization) noexcept nogil:
     """Compute a node's value & variance
 
     The value is capped in the [lower_bound, upper_bound] interval to respect

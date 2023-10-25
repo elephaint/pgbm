@@ -7,6 +7,7 @@ import numpy as np
 cimport numpy as cnp
 cnp.import_array()
 
+ctypedef Py_ssize_t intp_t
 ctypedef cnp.npy_float64 X_DTYPE_C
 ctypedef cnp.npy_uint8 X_BINNED_DTYPE_C
 ctypedef cnp.npy_float64 Y_DTYPE_C
@@ -41,7 +42,7 @@ cdef inline unsigned char in_bitset_2d_memoryview(const BITSET_INNER_DTYPE_C [:,
     return (bitset[row, val // 32] >> (val % 32)) & 1
 
 def _predict_from_raw_data(  # raw data = non-binned data
-        node_struct [:] nodes,
+        const node_struct [:] nodes,
         const X_DTYPE_C [:, :] numeric_data,
         const BITSET_INNER_DTYPE_C [:, ::1] raw_left_cat_bitsets,
         const BITSET_INNER_DTYPE_C [:, ::1] known_cat_bitsets,
@@ -71,12 +72,12 @@ def _predict_from_raw_data(  # raw data = non-binned data
 
 
 cdef inline (Y_DTYPE_C, Y_DTYPE_C) _predict_one_from_raw_data(
-        node_struct [:] nodes,
+        const node_struct [:] nodes,
         const X_DTYPE_C [:, :] numeric_data,
         const BITSET_INNER_DTYPE_C [:, ::1] raw_left_cat_bitsets,
         const BITSET_INNER_DTYPE_C [:, ::1] known_cat_bitsets,
         const unsigned int [::1] f_idx_map,
-        const int row) nogil:
+        const int row) noexcept nogil:
     # Need to pass the whole array and the row index, else prange won't work.
     # See issue Cython #2798
 
@@ -195,7 +196,8 @@ def _compute_partial_dependence(
     node_struct [:] nodes,
     const X_DTYPE_C [:, ::1] X,
     int [:] target_features,
-    Y_DTYPE_C [:] out):
+    Y_DTYPE_C [:] out
+):
     """Partial dependence of the response on the ``target_features`` set.
 
     For each sample in ``X`` a tree traversal is performed.
@@ -235,7 +237,7 @@ def _compute_partial_dependence(
         node_struct * current_node  # pointer to avoid copying attributes
 
         unsigned int sample_idx
-        unsigned feature_idx
+        intp_t feature_idx
         unsigned stack_size
         Y_DTYPE_C left_sample_frac
         Y_DTYPE_C current_weight
@@ -297,5 +299,4 @@ def _compute_partial_dependence(
 
         # Sanity check. Should never happen.
         if not (0.999 < total_weight < 1.001):
-            raise ValueError("Total weight should be 1.0 but was %.9f" %
-                                total_weight)
+            raise ValueError("Total weight should be 1.0 but was %.9f" %total_weight)

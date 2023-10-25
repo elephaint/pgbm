@@ -49,7 +49,7 @@ params['objective'] = 'regression'
 params['min_data_in_bin'] = 1
 params['bin_construct_sample_cnt'] = len(X_train)
 params['device'] = 'cpu'
-params['early_stopping'] = 0
+params['early_stopping'] = None
 # Train LightGBM
 dtrain = lgb.Dataset(X_train, y_train)
 start = time.perf_counter()
