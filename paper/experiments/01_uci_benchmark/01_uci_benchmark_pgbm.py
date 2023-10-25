@@ -19,10 +19,14 @@
 #%% Import packages
 import torch
 import time
-from pgbm import PGBM
+from pgbm.torch import PGBM
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
+from pathlib import Path
+import sys
+CURRENT_PATH = Path(__file__)
+sys.path.append(str(CURRENT_PATH.parents[2].joinpath('datasets')))
 from datasets import get_dataset, get_fold
 #%% Objective
 def objective(yhat, y, sample_weight=None):
@@ -57,7 +61,8 @@ params = {'min_split_gain':0,
 n_forecasts = 1000
 #%% Loop
 # datasets = ['boston', 'concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht','higgs']
-datasets = ['msd']
+datasets = ['concrete', 'energy', 'kin8nm', 'msd', 'naval', 'power', 'protein', 'wine', 'yacht', 'higgs']
+# datasets = ['msd']
 base_estimators = 2000
 df = pd.DataFrame(columns=['method', 'dataset','fold','device','validation_estimators','test_estimators','rmse_test','crps_test','validation_time'])
 torchdata = lambda x : torch.from_numpy(x).float()
@@ -102,7 +107,9 @@ for i, dataset in enumerate(datasets):
         rmse = rmseloss_metric(yhat_point.cpu(), y_test).numpy()
         crps = model.crps_ensemble(yhat_dist, y_test).mean().cpu().numpy()
         # Save data
-        df = df.append({'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}, ignore_index=True)
+        df_new_row = pd.DataFrame.from_records([{'method':method, 'dataset':dataset, 'fold':fold, 'device':params['device'], 'validation_estimators': base_estimators, 'test_estimators':params['n_estimators'], 'rmse_test': rmse, 'crps_test': crps, 'validation_time':validation_time}])
+        df = pd.concat([df, df_new_row])
+
 #%% Save
-filename = f"{method}_{params['device']}_new.csv"
-df.to_csv(f'experiments/01_uci_benchmark/{filename}')
+filename = f"{method}_{params['device']}.csv"
+df.to_csv(f'{filename}')

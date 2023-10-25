@@ -1,3 +1,6 @@
+## 2.1.2 ##
+* Fixed bug in sklearn cython code
+
 ## 2.1.1 ##
 * Fixed bug in missing values in scikit-learn wrapper for Torch backend
 
