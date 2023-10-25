@@ -260,9 +260,9 @@ cdef class HistogramBuilder:
     def compute_histograms_subtraction(
             HistogramBuilder self,
             hist_struct [:, ::1] parent_histograms,  # IN
-            hist_struct [:, ::1] sibling_histograms
+            hist_struct [:, ::1] sibling_histograms,
             const unsigned int [:] allowed_features=None,  # IN
-    ):  # IN
+):  # IN
         """Compute the histograms of the node using the subtraction trick.
 
         hist(parent) = hist(left_child) + hist(right_child)
