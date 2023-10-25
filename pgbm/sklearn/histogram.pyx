@@ -535,6 +535,9 @@ cdef class HistogramBuilderWithVariance:
         sibling_histograms : ndarray of HISTOGRAM_DTYPE_WITH_VAR, \
                 shape (n_features, n_bins)
             The histograms of the sibling.
+        allowed_features : None or ndarray, dtype=np.uint32
+            Indices of the features that are allowed by interaction constraints to be
+            split.
 
         Returns
         -------
@@ -545,7 +548,7 @@ cdef class HistogramBuilderWithVariance:
         cdef:
             int feature_idx
             int f_idx
-            int n_features = self.n_features
+            int n_allowed_features = self.n_features
             hist_struct_with_variance [:, ::1] histograms = np.empty(
                 shape=(self.n_features, self.n_bins),
                 dtype=HISTOGRAM_DTYPE_WITH_VAR

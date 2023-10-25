@@ -99,157 +99,13 @@ class TreeNode:
     partition_start = 0
     partition_stop = 0
 
-    def __init__(
-        self,
-        depth,
-        sample_indices,
-        sum_gradients,
-        sum_hessians,
-        value=None,
-    ):
+    def __init__(self, depth, sample_indices, sum_gradients, sum_hessians, value=None):
         self.depth = depth
         self.sample_indices = sample_indices
         self.n_samples = sample_indices.shape[0]
         self.sum_gradients = sum_gradients
         self.sum_hessians = sum_hessians
         self.value = value
-        self.is_leaf = False
-        self.allowed_features = None
-        self.interaction_cst_indices = None
-        self.set_children_bounds(float("-inf"), float("+inf"))
-
-    def set_children_bounds(self, lower, upper):
-        """Set children values bounds to respect monotonic constraints."""
-
-        # These are bounds for the node's *children* values, not the node's
-        # value. The bounds are used in the splitter when considering potential
-        # left and right child.
-        self.children_lower_bound = lower
-        self.children_upper_bound = upper
-
-    def __lt__(self, other_node):
-        """Comparison for priority queue.
-
-        Nodes with high gain are higher priority than nodes with low gain.
-
-        heapq.heappush only need the '<' operator.
-        heapq.heappop take the smallest item first (smaller is higher
-        priority).
-
-        Parameters
-        ----------
-        other_node : TreeNode
-            The node to compare with.
-        """
-        return self.split_info.gain > other_node.split_info.gain
-
-
-class TreeNodeWithVariance:
-    """Tree Node class used in TreeGrower, which also stores
-    additional variables to compute the variance in the leafs.
-
-    This isn't used for prediction purposes, only for training (see
-    TreePredictor).
-
-    Parameters
-    ----------
-    depth : int
-        The depth of the node, i.e. its distance from the root.
-    sample_indices : ndarray of shape (n_samples_at_node,), dtype=np.uint
-        The indices of the samples at the node.
-    sum_gradients : float
-        The sum of the gradients of the samples at the node.
-    sum_hessians : float
-        The sum of the hessians of the samples at the node.
-    sum_gradients_squared : float
-        The sum of the squared gradients of the samples at the node.
-    sum_hessians_squared : float
-        The sum of the squared hessians of the samples at the node.
-    sum_gradients_hessians : float
-        The sum of the gradient-hessian product of the samples at the node.
-
-    Attributes
-    ----------
-    depth : int
-        The depth of the node, i.e. its distance from the root.
-    sample_indices : ndarray of shape (n_samples_at_node,), dtype=np.uint
-        The indices of the samples at the node.
-    sum_gradients : float
-        The sum of the gradients of the samples at the node.
-    sum_hessians : float
-        The sum of the hessians of the samples at the node.
-    sum_gradients_squared : float
-        The sum of the squared gradients of the samples at the node.
-    sum_hessians_squared : float
-        The sum of the squared hessians of the samples at the node.
-    sum_gradients_hessians : float
-        The sum of the gradient-hessian product of the samples at the node.
-    split_info : SplitInfo or None
-        The result of the split evaluation.
-    is_leaf : bool
-        True if node is a leaf
-    left_child : TreeNode or None
-        The left child of the node. None for leaves.
-    right_child : TreeNode or None
-        The right child of the node. None for leaves.
-    value : float or None
-        The value of the leaf, as computed in finalize_leaf(). None for
-        non-leaf nodes.
-    variance : float or None
-        The variance of the leaf, as computed in finalize_leaf(). None for
-        non-leaf nodes.
-    partition_start : int
-        start position of the node's sample_indices in splitter.partition.
-    partition_stop : int
-        stop position of the node's sample_indices in splitter.partition.
-    allowed_features : None or ndarray, dtype=int
-        Indices of features allowed to split for children.
-    interaction_cst_indices : None or list of ints
-        Indices of the interaction sets that have to be applied on splits of
-        child nodes. The fewer sets the stronger the constraint as fewer sets
-        contain fewer features.
-    children_lower_bound : float
-    children_upper_bound : float
-    """
-
-    split_info = None
-    left_child = None
-    right_child = None
-    histograms = None
-
-    # start and stop indices of the node in the splitter.partition
-    # array. Concretely,
-    # self.sample_indices = view(self.splitter.partition[start:stop])
-    # Please see the comments about splitter.partition and
-    # splitter.split_indices for more info about this design.
-    # These 2 attributes are only used in _update_raw_prediction, because we
-    # need to iterate over the leaves and I don't know how to efficiently
-    # store the sample_indices views because they're all of different sizes.
-    partition_start = 0
-    partition_stop = 0
-
-    def __init__(
-        self,
-        depth,
-        sample_indices,
-        sum_gradients,
-        sum_hessians,
-        sum_gradients_squared,
-        sum_hessians_squared,
-        sum_gradients_hessians,
-        value=None,
-        variance=None,
-    ):
-        self.depth = depth
-        self.sample_indices = sample_indices
-        self.n_samples = sample_indices.shape[0]
-        self.sum_gradients = sum_gradients
-        self.sum_hessians = sum_hessians
-        self.sum_gradients_squared = sum_gradients_squared
-        self.sum_hessians_squared = sum_hessians_squared
-        self.sum_gradients_hessians = sum_gradients_hessians
-        self.value = value
-        self.variance = variance
         self.is_leaf = False
         self.allowed_features = None
         self.interaction_cst_indices = None
@@ -442,65 +298,12 @@ class TreeGrower:
             raise ValueError("Categorical features cannot have monotonic constraints.")
 
         hessians_are_constant = hessians.shape[0] == 1
-        missing_values_bin_idx = n_bins - 1
-        self.n_bins_non_missing = n_bins_non_missing
-        self.missing_values_bin_idx = missing_values_bin_idx
-        self.max_leaf_nodes = max_leaf_nodes
-        self.has_missing_values = has_missing_values
-        self.monotonic_cst = monotonic_cst
-        self.interaction_cst = interaction_cst
-        self.is_categorical = is_categorical
-        self.l2_regularization = l2_regularization
-        self.n_features = X_binned.shape[1]
-        self.max_depth = max_depth
-        self.min_samples_leaf = min_samples_leaf
-        self.X_binned = X_binned
-        self.min_gain_to_split = min_gain_to_split
-        self.shrinkage = shrinkage
-        self.n_threads = n_threads
-        self.splittable_nodes = []
-        self.finalized_leaves = []
-        self.total_find_split_time = 0.0  # time spent finding the best splits
-        self.total_compute_hist_time = 0.0  # time spent computing histograms
-        self.total_apply_split_time = 0.0  # time spent splitting nodes
-        self.n_categorical_splits = 0
         self.with_variance = with_variance
-        self.n_nodes = 1
-        if self.with_variance:
-            self.histogram_builder = HistogramBuilderWithVariance(
-                X_binned,
-                n_bins,
-                gradients,
-                hessians,
-                hessians_are_constant,
-                n_threads,
-            )
-            self.splitter = SplitterWithVariance(
-                X_binned,
-                n_bins_non_missing,
-                missing_values_bin_idx,
-                has_missing_values,
-                is_categorical,
-                monotonic_cst,
-                l2_regularization,
-                min_hessian_to_split,
-                min_samples_leaf,
-                min_gain_to_split,
-                hessians_are_constant,
-                n_threads,
-            )
-            self._intilialize_root_with_variance(
-                gradients, hessians, hessians_are_constant
-            )
-        else:
+        if not self.with_variance:
             self.histogram_builder = HistogramBuilder(
-                X_binned,
-                n_bins,
-                gradients,
-                hessians,
-                hessians_are_constant,
-                n_threads,
+                X_binned, n_bins, gradients, hessians, hessians_are_constant, n_threads
             )
+            missing_values_bin_idx = n_bins - 1
             self.splitter = Splitter(
                 X_binned,
                 n_bins_non_missing,
@@ -515,7 +318,72 @@ class TreeGrower:
                 hessians_are_constant,
                 n_threads,
             )
-            self._intilialize_root(gradients, hessians, hessians_are_constant)
+            self.n_bins_non_missing = n_bins_non_missing
+            self.missing_values_bin_idx = missing_values_bin_idx
+            self.max_leaf_nodes = max_leaf_nodes
+            self.has_missing_values = has_missing_values
+            self.monotonic_cst = monotonic_cst
+            self.interaction_cst = interaction_cst
+            self.is_categorical = is_categorical
+            self.l2_regularization = l2_regularization
+            self.n_features = X_binned.shape[1]
+            self.max_depth = max_depth
+            self.min_samples_leaf = min_samples_leaf
+            self.X_binned = X_binned
+            self.min_gain_to_split = min_gain_to_split
+            self.shrinkage = shrinkage
+            self.n_threads = n_threads
+            self.splittable_nodes = []
+            self.finalized_leaves = []
+            self.total_find_split_time = 0.0  # time spent finding the best splits
+            self.total_compute_hist_time = 0.0  # time spent computing histograms
+            self.total_apply_split_time = 0.0  # time spent splitting nodes
+            self.n_categorical_splits = 0
+            self._intilialize_root(gradients, hessians, hessians_are_constant)           
+        else:
+            self.histogram_builder = HistogramBuilderWithVariance(
+                X_binned, n_bins, gradients, hessians, hessians_are_constant, n_threads
+            )
+            missing_values_bin_idx = n_bins - 1
+            self.splitter = SplitterWithVariance(
+                X_binned,
+                n_bins_non_missing,
+                missing_values_bin_idx,
+                has_missing_values,
+                is_categorical,
+                monotonic_cst,
+                l2_regularization,
+                min_hessian_to_split,
+                min_samples_leaf,
+                min_gain_to_split,
+                hessians_are_constant,
+                n_threads,
+            )
+            self.n_bins_non_missing = n_bins_non_missing
+            self.missing_values_bin_idx = missing_values_bin_idx
+            self.max_leaf_nodes = max_leaf_nodes
+            self.has_missing_values = has_missing_values
+            self.monotonic_cst = monotonic_cst
+            self.interaction_cst = interaction_cst
+            self.is_categorical = is_categorical
+            self.l2_regularization = l2_regularization
+            self.n_features = X_binned.shape[1]
+            self.max_depth = max_depth
+            self.min_samples_leaf = min_samples_leaf
+            self.X_binned = X_binned
+            self.min_gain_to_split = min_gain_to_split
+            self.shrinkage = shrinkage
+            self.n_threads = n_threads
+            self.splittable_nodes = []
+            self.finalized_leaves = []
+            self.total_find_split_time = 0.0  # time spent finding the best splits
+            self.total_compute_hist_time = 0.0  # time spent computing histograms
+            self.total_apply_split_time = 0.0  # time spent splitting nodes
+            self.n_categorical_splits = 0
+            self._intilialize_root_with_variance(
+                gradients, hessians, hessians_are_constant
+            )
+        self.n_nodes = 1
 
     def _validate_parameters(
         self,
@@ -862,7 +730,6 @@ class TreeGrower:
             else:
                 smallest_child = right_child_node
                 largest_child = left_child_node
-
             # We use the brute O(n_samples) method on the child that has the
             # smallest number of samples, and the subtraction trick O(n_bins)
             # on the other one.
@@ -1074,3 +941,139 @@ def _fill_predictor_arrays(
         next_free_bitset_idx=next_free_bitset_idx,
         with_variance=with_variance,
     )
+
+class TreeNodeWithVariance:
+    """Tree Node class used in TreeGrower, which also stores
+    additional variables to compute the variance in the leafs.
+
+    This isn't used for prediction purposes, only for training (see
+    TreePredictor).
+
+    Parameters
+    ----------
+    depth : int
+        The depth of the node, i.e. its distance from the root.
+    sample_indices : ndarray of shape (n_samples_at_node,), dtype=np.uint
+        The indices of the samples at the node.
+    sum_gradients : float
+        The sum of the gradients of the samples at the node.
+    sum_hessians : float
+        The sum of the hessians of the samples at the node.
+    sum_gradients_squared : float
+        The sum of the squared gradients of the samples at the node.
+    sum_hessians_squared : float
+        The sum of the squared hessians of the samples at the node.
+    sum_gradients_hessians : float
+        The sum of the gradient-hessian product of the samples at the node.
+
+    Attributes
+    ----------
+    depth : int
+        The depth of the node, i.e. its distance from the root.
+    sample_indices : ndarray of shape (n_samples_at_node,), dtype=np.uint
+        The indices of the samples at the node.
+    sum_gradients : float
+        The sum of the gradients of the samples at the node.
+    sum_hessians : float
+        The sum of the hessians of the samples at the node.
+    sum_gradients_squared : float
+        The sum of the squared gradients of the samples at the node.
+    sum_hessians_squared : float
+        The sum of the squared hessians of the samples at the node.
+    sum_gradients_hessians : float
+        The sum of the gradient-hessian product of the samples at the node.
+    split_info : SplitInfo or None
+        The result of the split evaluation.
+    is_leaf : bool
+        True if node is a leaf
+    left_child : TreeNode or None
+        The left child of the node. None for leaves.
+    right_child : TreeNode or None
+        The right child of the node. None for leaves.
+    value : float or None
+        The value of the leaf, as computed in finalize_leaf(). None for
+        non-leaf nodes.
+    variance : float or None
+        The variance of the leaf, as computed in finalize_leaf(). None for
+        non-leaf nodes.
+    partition_start : int
+        start position of the node's sample_indices in splitter.partition.
+    partition_stop : int
+        stop position of the node's sample_indices in splitter.partition.
+    allowed_features : None or ndarray, dtype=int
+        Indices of features allowed to split for children.
+    interaction_cst_indices : None or list of ints
+        Indices of the interaction sets that have to be applied on splits of
+        child nodes. The fewer sets the stronger the constraint as fewer sets
+        contain fewer features.
+    children_lower_bound : float
+    children_upper_bound : float
+    """
+
+    split_info = None
+    left_child = None
+    right_child = None
+    histograms = None
+
+    # start and stop indices of the node in the splitter.partition
+    # array. Concretely,
+    # self.sample_indices = view(self.splitter.partition[start:stop])
+    # Please see the comments about splitter.partition and
+    # splitter.split_indices for more info about this design.
+    # These 2 attributes are only used in _update_raw_prediction, because we
+    # need to iterate over the leaves and I don't know how to efficiently
+    # store the sample_indices views because they're all of different sizes.
+    partition_start = 0
+    partition_stop = 0
+
+    def __init__(
+        self,
+        depth,
+        sample_indices,
+        sum_gradients,
+        sum_hessians,
+        sum_gradients_squared,
+        sum_hessians_squared,
+        sum_gradients_hessians,
+        value=None,
+        variance=None,
+    ):
+        self.depth = depth
+        self.sample_indices = sample_indices
+        self.n_samples = sample_indices.shape[0]
+        self.sum_gradients = sum_gradients
+        self.sum_hessians = sum_hessians
+        self.sum_gradients_squared = sum_gradients_squared
+        self.sum_hessians_squared = sum_hessians_squared
+        self.sum_gradients_hessians = sum_gradients_hessians
+        self.value = value
+        self.variance = variance
+        self.is_leaf = False
+        self.allowed_features = None
+        self.interaction_cst_indices = None
+        self.set_children_bounds(float("-inf"), float("+inf"))
+
+    def set_children_bounds(self, lower, upper):
+        """Set children values bounds to respect monotonic constraints."""
+
+        # These are bounds for the node's *children* values, not the node's
+        # value. The bounds are used in the splitter when considering potential
+        # left and right child.
+        self.children_lower_bound = lower
+        self.children_upper_bound = upper
+
+    def __lt__(self, other_node):
+        """Comparison for priority queue.
+
+        Nodes with high gain are higher priority than nodes with low gain.
+
+        heapq.heappush only need the '<' operator.
+        heapq.heappop take the smallest item first (smaller is higher
+        priority).
+
+        Parameters
+        ----------
+        other_node : TreeNode
+            The node to compare with.
+        """
+        return self.split_info.gain > other_node.split_info.gain

@@ -19,7 +19,7 @@ cdef packed struct node_struct:
     Y_DTYPE_C value
     Y_DTYPE_C variance
     unsigned int count
-    unsigned int feature_idx
+    intp_t feature_idx
     X_DTYPE_C num_threshold
     unsigned char missing_go_to_left
     unsigned int left
@@ -35,7 +35,7 @@ cdef packed struct node_struct:
 
 cdef inline unsigned char in_bitset_2d_memoryview(const BITSET_INNER_DTYPE_C [:, :] bitset,
                                                   X_BINNED_DTYPE_C val,
-                                                  unsigned int row) nogil:
+                                                  unsigned int row) noexcept nogil:
 
     # Same as above but works on 2d memory views to avoid the creation of 1d
     # memory views. See https://github.com/scikit-learn/scikit-learn/issues/17299
@@ -156,7 +156,7 @@ cdef inline (Y_DTYPE_C, Y_DTYPE_C) _predict_one_from_binned_data(
         const X_BINNED_DTYPE_C [:, :] binned_data,
         const BITSET_INNER_DTYPE_C [:, :] binned_left_cat_bitsets,
         const int row,
-        const unsigned char missing_values_bin_idx) nogil:
+        const unsigned char missing_values_bin_idx) noexcept nogil:
     # Need to pass the whole array and the row index, else prange won't work.
     # See issue Cython #2798
 
