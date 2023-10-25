@@ -460,7 +460,7 @@ cdef class HistogramBuilderWithVariance:
                 else:
                     feature_idx = f_idx
 
-                self._compute_histogram_brute_single_feature(
+                self._compute_histogram_brute_single_feature_with_variance(
                     feature_idx, sample_indices, histograms
                 )
 
