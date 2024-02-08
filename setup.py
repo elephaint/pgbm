@@ -57,7 +57,7 @@ for extension in extensions:
 if __name__ == "__main__":
     setup(
         name="pgbm",
-        version="2.2.0",
+        version="2.3.0",
         description="Probabilistic Gradient Boosting Machines",
         author="Olivier Sprangers",
         author_email="o.r.sprangers@uva.nl",
@@ -70,8 +70,8 @@ if __name__ == "__main__":
             "Programming Language :: Python :: 3.8",
             "License :: OSI Approved :: Apache Software License",
             "Operating System :: OS Independent"],
-        python_requires='>=3.8',
-        install_requires=["scikit-learn>=1.1.2",
+        python_requires='>=3.8,<3.12',
+        install_requires=["scikit-learn>=1.2.0",
                         "ninja>=1.10.2.2",
                         "numba>=0.56"],
         zip_safe=False,
