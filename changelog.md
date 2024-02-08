@@ -1,6 +1,7 @@
 ## 2.3.0 ##
-* Added Python 3.11 and 3.12 testing scripts to wheel
-* Update scikit-learn dependency requirement to 1.2
+* Added Python 3.11 testing scripts to wheel
+* Update scikit-learn minimum dependency requirement to 1.2
+* Update MacOSX minimum dependency to MacOSX 10.13
 
 ## 2.1.2 ##
 * Fixed bug in sklearn cython code
