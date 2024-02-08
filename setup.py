@@ -70,7 +70,7 @@ if __name__ == "__main__":
             "Programming Language :: Python :: 3.8",
             "License :: OSI Approved :: Apache Software License",
             "Operating System :: OS Independent"],
-        python_requires='>=3.8',
+        python_requires='>=3.9,<=3.11',
         install_requires=["scikit-learn>=1.2.0",
                         "ninja>=1.10.2.2",
                         "numba>=0.56"],
